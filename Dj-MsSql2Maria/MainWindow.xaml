@@ -8,7 +8,7 @@
         Title="MS SQL to MariaDB 1.0.0 (Dj-MsSql2Maria)"
         ResizeMode="CanMinimize"
         SizeToContent="Height"
-        Width="520"
+        Width="600"
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
