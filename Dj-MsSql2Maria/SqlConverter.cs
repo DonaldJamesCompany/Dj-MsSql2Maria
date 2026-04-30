@@ -1,0 +1,355 @@
+using System.IO;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
+
+namespace Dj-MsSql2Maria;
+
+/// <summary>
+/// Converts MS SQL Server DDL/DML syntax to MariaDB-compatible SQL,
+/// and extracts embedded SQL text from .BAK backup files.
+/// </summary>
+internal static class SqlConverter
+{
+    // ── Public entry points ──────────────────────────────────────────────────
+
+    /// <summary>Converts a complete MS SQL script string to MariaDB syntax.</summary>
+    public static string ConvertToMariaDb(string sql)
+    {
+        if (string.IsNullOrWhiteSpace(sql)) return sql;
+
+        sql = RemoveUnsupportedStatements(sql);
+        sql = ConvertDatatypes(sql);
+        sql = ConvertIdentityToAutoIncrement(sql);
+        sql = ConvertDefaultConstraints(sql);
+        sql = ConvertBracketIdentifiers(sql);
+        sql = ConvertStringFunctions(sql);
+        sql = ConvertDateFunctions(sql);
+        sql = ConvertSchemaPrefixes(sql);
+        sql = ConvertGoStatements(sql);
+        sql = ConvertSetStatements(sql);
+        sql = ConvertNVarcharLiterals(sql);
+        sql = ConvertTopToLimit(sql);
+        sql = ConvertIfExists(sql);
+        sql = ConvertWithNolock(sql);
+        sql = FixTrailingCommasBeforeCloseParen(sql);
+
+        return sql.Trim();
+    }
+
+    /// <summary>
+    /// Attempts to extract readable SQL text segments embedded inside a SQL Server .BAK file.
+    /// This is a best-effort byte-scan approach that does not require a live SQL Server instance.
+    /// </summary>
+    public static List<string> ExtractSqlFromBak(
+        string bakPath, bool includeTables, bool includeData, CancellationToken ct)
+    {
+        var results = new List<string>();
+
+        // BAK files are MTF (Microsoft Tape Format) streams. Embedded SQL text is stored
+        // as UTF-16 or ASCII within data pages. We scan for recognisable SQL keywords.
+        byte[] bytes = File.ReadAllBytes(bakPath);
+
+        // Try UTF-16 LE decode first (most common for SQL Server internal strings)
+        string full16 = Encoding.Unicode.GetString(bytes);
+        ExtractSegments(full16, includeTables, includeData, results, ct);
+
+        // Also try ASCII / UTF-8 in case of older backups or mixed content
+        string full8 = Encoding.UTF8.GetString(bytes);
+        if (results.Count == 0)
+            ExtractSegments(full8, includeTables, includeData, results, ct);
+
+        if (results.Count == 0)
+            results.Add(
+                "-- Dj-MsSql2Maria: No extractable SQL text was found in this .BAK file.\r\n" +
+                "-- To convert a BAK file fully, attach it to a SQL Server instance, \r\n" +
+                "-- script the database objects with SSMS, then use the .SQL file mode.");
+
+        return results;
+    }
+
+    // ── BAK extraction helpers ───────────────────────────────────────────────
+
+    private static readonly Regex CreateTableRx = new(
+        @"CREATE\s+TABLE\s+[\[\w][\s\S]{10,2000}?\)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex InsertRx = new(
+        @"INSERT\s+(?:INTO\s+)?[\[\w][\s\S]{5,1000}?;",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static void ExtractSegments(
+        string text, bool tables, bool data,
+        List<string> results, CancellationToken ct)
+    {
+        if (tables)
+        {
+            foreach (Match m in CreateTableRx.Matches(text))
+            {
+                ct.ThrowIfCancellationRequested();
+                string s = m.Value.Trim();
+                if (s.Length > 30 && IsPrintable(s))
+                    results.Add(s);
+            }
+        }
+
+        if (data)
+        {
+            foreach (Match m in InsertRx.Matches(text))
+            {
+                ct.ThrowIfCancellationRequested();
+                string s = m.Value.Trim();
+                if (s.Length > 20 && IsPrintable(s))
+                    results.Add(s);
+            }
+        }
+    }
+
+    private static bool IsPrintable(string s)
+    {
+        int printable = s.Count(c => c >= 0x20 && c < 0x7F);
+        return printable * 100 / s.Length > 60;
+    }
+
+    // ── Conversion passes ────────────────────────────────────────────────────
+
+    private static string RemoveUnsupportedStatements(string sql)
+    {
+        // Remove USE [db]
+        sql = Regex.Replace(sql, @"^\s*USE\s+\[?\w+\]?\s*;?\s*$", string.Empty,
+            RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
+        // Remove SET statements that are MSSQL-only
+        sql = Regex.Replace(sql,
+            @"^\s*SET\s+(ANSI_NULLS|QUOTED_IDENTIFIER|ANSI_PADDING|NOCOUNT)\s+(ON|OFF)\s*;?\s*$",
+            string.Empty, RegexOptions.Multiline | RegexOptions.IgnoreCase);
+
+        // Remove WITH (STATISTICS_NORECOMPUTE …) index options
+        sql = Regex.Replace(sql,
+            @"\bWITH\s*\(\s*STATISTICS_NORECOMPUTE\s*=\s*(ON|OFF)[^)]*\)",
+            string.Empty, RegexOptions.IgnoreCase);
+
+        // Remove CLUSTERED / NONCLUSTERED keywords (MariaDB ignores)
+        sql = Regex.Replace(sql, @"\b(CLUSTERED|NONCLUSTERED)\b", string.Empty,
+            RegexOptions.IgnoreCase);
+
+        // Remove TEXTIMAGE_ON, ON [PRIMARY]
+        sql = Regex.Replace(sql,
+            @"\b(TEXTIMAGE_ON|ON)\s+\[?(PRIMARY|\w+)\]?",
+            string.Empty, RegexOptions.IgnoreCase);
+
+        // Remove PAD_INDEX / FILLFACTOR options
+        sql = Regex.Replace(sql,
+            @",?\s*PAD_INDEX\s*=\s*(ON|OFF)",
+            string.Empty, RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql,
+            @",?\s*FILLFACTOR\s*=\s*\d+",
+            string.Empty, RegexOptions.IgnoreCase);
+
+        // Remove ALLOW_ROW_LOCKS / ALLOW_PAGE_LOCKS
+        sql = Regex.Replace(sql,
+            @",?\s*ALLOW_(ROW|PAGE)_LOCKS\s*=\s*(ON|OFF)",
+            string.Empty, RegexOptions.IgnoreCase);
+
+        return sql;
+    }
+
+    private static string ConvertDatatypes(string sql)
+    {
+        // Map MSSQL types → MariaDB equivalents
+        var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["NVARCHAR"]        = "VARCHAR",
+            ["NCHAR"]           = "CHAR",
+            ["NTEXT"]           = "LONGTEXT",
+            ["TEXT"]            = "LONGTEXT",
+            ["IMAGE"]           = "LONGBLOB",
+            ["VARBINARY"]       = "VARBINARY",
+            ["UNIQUEIDENTIFIER"]= "CHAR(36)",
+            ["BIT"]             = "TINYINT(1)",
+            ["SMALLMONEY"]      = "DECIMAL(10,4)",
+            ["MONEY"]           = "DECIMAL(19,4)",
+            ["REAL"]            = "FLOAT",
+            ["SMALLDATETIME"]   = "DATETIME",
+            ["DATETIME2"]       = "DATETIME(6)",
+            ["DATETIMEOFFSET"]  = "DATETIME(6)",
+            ["XML"]             = "LONGTEXT",
+            ["HIERARCHYID"]     = "VARBINARY(892)",
+            ["GEOGRAPHY"]       = "GEOMETRY",
+            ["GEOMETRY"]        = "GEOMETRY",
+            ["ROWVERSION"]      = "TIMESTAMP",
+            ["TIMESTAMP"]       = "TIMESTAMP",
+            ["SQL_VARIANT"]     = "TEXT",
+        };
+
+        foreach (var (mssql, maria) in map)
+        {
+            // Replace as whole word; preserve any following (size) spec unless type has fixed replacement
+            if (maria.Contains('('))
+            {
+                // Fixed replacement: also remove any existing (n) trailing size
+                sql = Regex.Replace(sql,
+                    $@"\b{Regex.Escape(mssql)}\b(\s*\(\s*\w+\s*\))?",
+                    maria, RegexOptions.IgnoreCase);
+            }
+            else
+            {
+                sql = Regex.Replace(sql,
+                    $@"\b{Regex.Escape(mssql)}\b",
+                    maria, RegexOptions.IgnoreCase);
+            }
+        }
+
+        // NVARCHAR(MAX) / VARCHAR(MAX) → LONGTEXT
+        sql = Regex.Replace(sql, @"\bVARCHAR\s*\(\s*MAX\s*\)", "LONGTEXT", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bVARBINARY\s*\(\s*MAX\s*\)", "LONGBLOB", RegexOptions.IgnoreCase);
+
+        return sql;
+    }
+
+    private static string ConvertIdentityToAutoIncrement(string sql)
+    {
+        // IDENTITY(seed, incr) → AUTO_INCREMENT (MariaDB only supports AUTO_INCREMENT; seed/incr ignored)
+        sql = Regex.Replace(sql,
+            @"\bIDENTITY\s*\(\s*\d+\s*,\s*\d+\s*\)",
+            "AUTO_INCREMENT", RegexOptions.IgnoreCase);
+
+        sql = Regex.Replace(sql, @"\bIDENTITY\b", "AUTO_INCREMENT", RegexOptions.IgnoreCase);
+        return sql;
+    }
+
+    private static string ConvertDefaultConstraints(string sql)
+    {
+        // CONSTRAINT [df_xxx] DEFAULT (value) → DEFAULT value
+        sql = Regex.Replace(sql,
+            @"\bCONSTRAINT\s+\[?\w+\]?\s+DEFAULT\s*\(([^)]*)\)",
+            "DEFAULT $1", RegexOptions.IgnoreCase);
+
+        // DEFAULT (getdate()) → DEFAULT CURRENT_TIMESTAMP
+        sql = Regex.Replace(sql,
+            @"\bDEFAULT\s*\(\s*getdate\s*\(\s*\)\s*\)",
+            "DEFAULT CURRENT_TIMESTAMP", RegexOptions.IgnoreCase);
+
+        // DEFAULT (newid()) → DEFAULT (UUID())
+        sql = Regex.Replace(sql,
+            @"\bDEFAULT\s*\(\s*newid\s*\(\s*\)\s*\)",
+            "DEFAULT (UUID())", RegexOptions.IgnoreCase);
+
+        // DEFAULT (0) / DEFAULT (1) → strip parens
+        sql = Regex.Replace(sql,
+            @"\bDEFAULT\s*\(([^)(]+)\)",
+            "DEFAULT $1", RegexOptions.IgnoreCase);
+
+        return sql;
+    }
+
+    private static string ConvertBracketIdentifiers(string sql)
+    {
+        // [identifier] → `identifier`
+        return Regex.Replace(sql, @"\[(\w[\w\s]*)\]", "`$1`");
+    }
+
+    private static string ConvertStringFunctions(string sql)
+    {
+        sql = Regex.Replace(sql, @"\bLEN\s*\(", "CHAR_LENGTH(", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bCHARINDEX\s*\(([^,]+),([^)]+)\)",
+            "LOCATE($1,$2)", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bSUBSTRING\s*\(", "SUBSTRING(", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bISNULL\s*\(", "IFNULL(", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bIIF\s*\(([^,]+),([^,]+),([^)]+)\)",
+            "IF($1,$2,$3)", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bNEWID\s*\(\s*\)", "UUID()", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bCONVERT\s*\(\s*VARCHAR[^,]*,\s*([^)]+)\)",
+            "CAST($1 AS CHAR)", RegexOptions.IgnoreCase);
+        return sql;
+    }
+
+    private static string ConvertDateFunctions(string sql)
+    {
+        sql = Regex.Replace(sql, @"\bGETDATE\s*\(\s*\)", "NOW()", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bGETUTCDATE\s*\(\s*\)", "UTC_TIMESTAMP()", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bSYSDATETIME\s*\(\s*\)", "NOW(6)", RegexOptions.IgnoreCase);
+        // DATEADD(part, n, date) → DATE_ADD(date, INTERVAL n part)
+        sql = Regex.Replace(sql,
+            @"\bDATEADD\s*\(\s*(\w+)\s*,\s*([^,]+),\s*([^)]+)\)",
+            "DATE_ADD($3, INTERVAL $2 $1)", RegexOptions.IgnoreCase);
+        // DATEDIFF(part, start, end) → DATEDIFF(end, start)  [MariaDB DATEDIFF is days-only]
+        sql = Regex.Replace(sql,
+            @"\bDATEDIFF\s*\(\s*\w+\s*,\s*([^,]+),\s*([^)]+)\)",
+            "DATEDIFF($2, $1)", RegexOptions.IgnoreCase);
+        // DATEPART(part, date) → EXTRACT(part FROM date)
+        sql = Regex.Replace(sql,
+            @"\bDATEPART\s*\(\s*(\w+)\s*,\s*([^)]+)\)",
+            "EXTRACT($1 FROM $2)", RegexOptions.IgnoreCase);
+        return sql;
+    }
+
+    private static string ConvertSchemaPrefixes(string sql)
+    {
+        // dbo.TableName → TableName  (remove schema prefix)
+        sql = Regex.Replace(sql, @"\bdbo\s*\.\s*", string.Empty, RegexOptions.IgnoreCase);
+        return sql;
+    }
+
+    private static string ConvertGoStatements(string sql)
+    {
+        // GO batch separator → comment (MariaDB doesn't use GO)
+        sql = Regex.Replace(sql, @"^\s*GO\s*$", "-- GO", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+        return sql;
+    }
+
+    private static string ConvertSetStatements(string sql)
+    {
+        sql = Regex.Replace(sql,
+            @"^\s*SET\s+NOCOUNT\s+(ON|OFF)\s*;?\s*$",
+            string.Empty, RegexOptions.Multiline | RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql,
+            @"^\s*SET\s+XACT_ABORT\s+(ON|OFF)\s*;?\s*$",
+            string.Empty, RegexOptions.Multiline | RegexOptions.IgnoreCase);
+        return sql;
+    }
+
+    private static string ConvertNVarcharLiterals(string sql)
+    {
+        // N'string' → 'string'
+        return Regex.Replace(sql, @"\bN'", "'");
+    }
+
+    private static string ConvertTopToLimit(string sql)
+    {
+        // SELECT TOP n … → SELECT … LIMIT n  (simple single-table cases)
+        // This is a best-effort transform; complex queries may need manual review.
+        return Regex.Replace(sql,
+            @"\bSELECT\s+TOP\s+(\d+)\b",
+            "SELECT /* TOP $1 – move LIMIT $1 to end of query */",
+            RegexOptions.IgnoreCase);
+    }
+
+    private static string ConvertIfExists(string sql)
+    {
+        // IF EXISTS (SELECT …) DROP TABLE → DROP TABLE IF EXISTS
+        sql = Regex.Replace(sql,
+            @"IF\s+EXISTS\s*\([^)]*\)\s*(DROP\s+TABLE\s+(?:`[^`]+`|\[?\w+\]?))",
+            "$1 IF EXISTS", RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+        // IF OBJECT_ID('x') IS NOT NULL DROP TABLE x → DROP TABLE IF EXISTS x
+        sql = Regex.Replace(sql,
+            @"IF\s+OBJECT_ID\s*\(\s*N?'([^']+)'\s*(?:,\s*N?'[^']*')?\s*\)\s+IS\s+NOT\s+NULL\s+(DROP\s+(?:TABLE|PROCEDURE|VIEW|FUNCTION)\s+\S+)",
+            "$2 -- converted from IF OBJECT_ID", RegexOptions.IgnoreCase);
+
+        return sql;
+    }
+
+    private static string ConvertWithNolock(string sql)
+    {
+        // WITH (NOLOCK) is a MSSQL hint; MariaDB ignores it
+        return Regex.Replace(sql, @"\bWITH\s*\(\s*NOLOCK\s*\)", "/* WITH(NOLOCK) */",
+            RegexOptions.IgnoreCase);
+    }
+
+    private static string FixTrailingCommasBeforeCloseParen(string sql)
+    {
+        // Remove trailing commas before ) that sometimes arise from stripping columns
+        return Regex.Replace(sql, @",\s*\)", ")");
+    }
+}
