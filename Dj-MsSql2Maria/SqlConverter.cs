@@ -3,7 +3,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
 
-namespace Dj-MsSql2Maria;
+namespace Dj_MsSql2Maria;
 
 /// <summary>
 /// Converts MS SQL Server DDL/DML syntax to MariaDB-compatible SQL,

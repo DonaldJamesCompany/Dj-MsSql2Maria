@@ -1,8 +1,8 @@
-﻿using System.Configuration;
+using System.Configuration;
 using System.Data;
 using System.Windows;
 
-namespace Dj-MsSql2Maria
+namespace Dj_MsSql2Maria
 {
     /// <summary>
     /// Interaction logic for App.xaml

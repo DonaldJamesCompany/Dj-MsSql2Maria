@@ -19,6 +19,7 @@
     <PublishTrimmed>false</PublishTrimmed>
 
     <!-- Assembly metadata -->
+    <RootNamespace>Dj_MsSql2Maria</RootNamespace>
     <AssemblyTitle>MS SQL to MariaDB 1.0.0 (Dj-MsSql2Maria)</AssemblyTitle>
     <Product>MS SQL to MariaDB 1.0.0 (Dj-MsSql2Maria)</Product>
     <Version>1.0.0</Version>
