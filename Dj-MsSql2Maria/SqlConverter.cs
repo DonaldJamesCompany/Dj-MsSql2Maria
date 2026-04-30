@@ -5,6 +5,11 @@ using System.Threading;
 
 namespace Dj_MsSql2Maria;
 
+/// <summary>A single SQL segment extracted from a BAK file, tagged with its origin.</summary>
+internal sealed record BakSegment(string TableName, BakSegmentType Type, string Sql);
+
+internal enum BakSegmentType { Table, Data }
+
 /// <summary>
 /// Converts MS SQL Server DDL/DML syntax to MariaDB-compatible SQL,
 /// and extracts embedded SQL text from .BAK backup files.
@@ -41,13 +46,11 @@ internal static class SqlConverter
     /// Attempts to extract readable SQL text segments embedded inside a SQL Server .BAK file.
     /// This is a best-effort byte-scan approach that does not require a live SQL Server instance.
     /// </summary>
-    public static List<string> ExtractSqlFromBak(
+    public static List<BakSegment> ExtractSqlFromBak(
         string bakPath, bool includeTables, bool includeData, CancellationToken ct)
     {
-        var results = new List<string>();
+        var results = new List<BakSegment>();
 
-        // BAK files are MTF (Microsoft Tape Format) streams. Embedded SQL text is stored
-        // as UTF-16 or ASCII within data pages. We scan for recognisable SQL keywords.
         byte[] bytes = File.ReadAllBytes(bakPath);
 
         // Try UTF-16 LE decode first (most common for SQL Server internal strings)
@@ -55,15 +58,17 @@ internal static class SqlConverter
         ExtractSegments(full16, includeTables, includeData, results, ct);
 
         // Also try ASCII / UTF-8 in case of older backups or mixed content
-        string full8 = Encoding.UTF8.GetString(bytes);
         if (results.Count == 0)
+        {
+            string full8 = Encoding.UTF8.GetString(bytes);
             ExtractSegments(full8, includeTables, includeData, results, ct);
+        }
 
         if (results.Count == 0)
-            results.Add(
+            results.Add(new BakSegment("_no_sql_found", BakSegmentType.Table,
                 "-- Dj-MsSql2Maria: No extractable SQL text was found in this .BAK file.\r\n" +
                 "-- To convert a BAK file fully, attach it to a SQL Server instance, \r\n" +
-                "-- script the database objects with SSMS, then use the .SQL file mode.");
+                "-- script the database objects with SSMS, then use the .SQL file mode."));
 
         return results;
     }
@@ -71,16 +76,18 @@ internal static class SqlConverter
     // ── BAK extraction helpers ───────────────────────────────────────────────
 
     private static readonly Regex CreateTableRx = new(
-        @"CREATE\s+TABLE\s+[\[\w][\s\S]{10,2000}?\)",
+        @"CREATE\s+TABLE\s+([\[\`]?[\w\s]+[\]\`]?)\s*[\(\s\S]{10,2000}?\)",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
 
     private static readonly Regex InsertRx = new(
-        @"INSERT\s+(?:INTO\s+)?[\[\w][\s\S]{5,1000}?;",
+        @"INSERT\s+(?:INTO\s+)?([\[\`]?[\w\s]+[\]\`]?)[\s\S]{5,1000}?;",
         RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex TableNameCleanRx = new(@"[\[\]\`\s]", RegexOptions.Compiled);
 
     private static void ExtractSegments(
         string text, bool tables, bool data,
-        List<string> results, CancellationToken ct)
+        List<BakSegment> results, CancellationToken ct)
     {
         if (tables)
         {
@@ -89,7 +96,10 @@ internal static class SqlConverter
                 ct.ThrowIfCancellationRequested();
                 string s = m.Value.Trim();
                 if (s.Length > 30 && IsPrintable(s))
-                    results.Add(s);
+                {
+                    string tableName = TableNameCleanRx.Replace(m.Groups[1].Value, "_").Trim('_');
+                    results.Add(new BakSegment(tableName, BakSegmentType.Table, s));
+                }
             }
         }
 
@@ -100,7 +110,10 @@ internal static class SqlConverter
                 ct.ThrowIfCancellationRequested();
                 string s = m.Value.Trim();
                 if (s.Length > 20 && IsPrintable(s))
-                    results.Add(s);
+                {
+                    string tableName = TableNameCleanRx.Replace(m.Groups[1].Value, "_").Trim('_');
+                    results.Add(new BakSegment(tableName, BakSegmentType.Data, s));
+                }
             }
         }
     }
