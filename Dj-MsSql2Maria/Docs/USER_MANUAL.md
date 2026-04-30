@@ -18,10 +18,11 @@
 6. [Output File Naming](#6-output-file-naming)
 7. [Button Reference](#7-button-reference)
 8. [The Log Panel](#8-the-log-panel)
-9. [Progress Bar](#9-progress-bar)
-10. [Known Limitations](#10-known-limitations)
-11. [Troubleshooting](#11-troubleshooting)
-12. [Frequently Asked Questions](#12-frequently-asked-questions)
+9. [The Status Panel](#9-the-status-panel)
+10. [Progress Bar](#10-progress-bar)
+11. [Known Limitations](#11-known-limitations)
+12. [Troubleshooting](#12-troubleshooting)
+13. [Frequently Asked Questions](#13-frequently-asked-questions)
 
 ---
 
@@ -62,24 +63,30 @@ The output will be located in `bin\Release\net9.0-windows\win-x64\publish\`.
 ## 4. Application Layout
 
 ```
-┌─────────────────────────────────────────────────────┐
-│  Input                                              │
-│    Type:  [ Single .SQL File ▼ ]                    │
-│    File:  [________________________] [Browse…]      │
-│    ☐ Create MariaDB script for Tables?  (BAK only)  │
-│    ☐ Create MariaDB script for Data?    (BAK only)  │
-├─────────────────────────────────────────────────────┤
-│  Output                                             │
-│    Folder: [_____________________] [Browse…]        │
-│    ☐ Append to filename?  [_MariaDb_____________]   │
-├─────────────────────────────────────────────────────┤
-│  Log                                                │
-│  ┌───────────────────────────────────────────────┐  │
-│  │  (scrollable log output)                      │  │
-│  └───────────────────────────────────────────────┘  │
-│  [████████████░░░░░░░░] Progress Bar                │
-│  [ STOP ]  [ CLEAR ]  [ GO ]  [ EXIT ]              │
-└─────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  Input                                                              │
+│    Type:  [ Single .SQL File ▼ ]                                    │
+│    File:  [________________________________] [Browse…]              │
+│                                                                     │
+│  (BAK mode only)                                                    │
+│    ☑ Create MariaDB script for Tables?  ☐ Individual or Consolidated .SQL files? │
+│    ☑ Create MariaDB script for Data?    ☐ Individual or Consolidated .SQL files? │
+├─────────────────────────────────────────────────────────────────────┤
+│  Output                                                             │
+│    Folder: [____________________________] [Browse…]                 │
+│    ☐ Append to filename?  [_MariaDb_____________]                   │
+├─────────────────────────────────────────────────────────────────────┤
+│  Log  (black background · yellow text)                              │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  (scrollable real-time log output)                          │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│  [████████████░░░░░░░░] Progress Bar                                │
+│  Status  (black background · green text)                            │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │  (scrollable current-state output)                          │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│  [ STOP ]  [ CLEAR ]  [ GO ]  [ VIEW LOG ]  [ EXIT ]               │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -121,15 +128,27 @@ All selected files are concatenated and converted into a single output file name
 
 1. In Dj-MsSql2Maria's **Type** drop-down, select **MS SQL Server .BAK File**.
 2. Click **Browse…** — the file dialog is filtered to `.bak` files only.
-3. Two extra checkboxes become visible in the Input section:
-   - **Create MariaDB script for Tables?** — extracts `CREATE TABLE` statements.
-   - **Create MariaDB script for Data?** — extracts `INSERT` statements.
-   - At least one must be logically useful; both are checked by default.
+3. Four extra controls become visible in the Input section (two rows):
+
+   | Checkbox | Default | Meaning |
+   |---|---|---|
+   | **Create MariaDB script for Tables?** | ✅ Checked | Extract `CREATE TABLE` statements |
+   | **Individual or Consolidated .SQL files?** (Tables row) | ☐ Unchecked | When **unchecked** (default): all table scripts go into one consolidated output file. When **checked**: one separate `.sql` file is generated per table's creation script. |
+   | **Create MariaDB script for Data?** | ✅ Checked | Extract `INSERT` statements |
+   | **Individual or Consolidated .SQL files?** (Data row) | ☐ Unchecked | When **unchecked** (default): all data inserts go into one consolidated output file. When **checked**: one separate `.sql` file is generated per table's data population script. |
+
 4. Choose an output folder.
 5. *(Optional)* Set the filename suffix.
 6. Click **GO**.
 
-The output file is named after the BAK file, e.g. `MyDatabase_MariaDb.sql`.
+**Individual file naming** (when the "Individual or Consolidated" checkbox is checked):
+
+| Script type | Example output filename |
+|---|---|
+| Table creation | `MyDatabase_TableName_tables_MariaDb.sql` |
+| Data population | `MyDatabase_TableName_data_MariaDb.sql` |
+
+The output for **consolidated** mode (default) is named after the BAK file, e.g. `MyDatabase_MariaDb.sql`.
 
 ---
 
@@ -152,6 +171,7 @@ The suffix text field is freely editable. Clear it to use an empty suffix, or ty
 | **GO** | — | Not processing | Starts the conversion process |
 | **STOP** | — | Processing is active | Immediately cancels the current operation |
 | **CLEAR** | — | Not processing | Resets all controls to their default values |
+| **VIEW LOG** | — | After a run completes | Opens the output file location in Explorer |
 | **EXIT** | — | Not processing | Closes the application |
 
 > After clicking **STOP**, the output file may be partially written. Delete it before retrying.
@@ -160,7 +180,7 @@ The suffix text field is freely editable. Clear it to use an empty suffix, or ty
 
 ## 8. The Log Panel
 
-The **Log** panel shows real-time progress messages as each file is processed:
+The **Log** panel (black background, yellow text) shows real-time progress messages as each file is processed:
 
 ```
 Converting 3 file(s)…
@@ -170,13 +190,21 @@ Converting 3 file(s)…
 ✔  Done. Output: C:\Output\output_MariaDb.sql
 ```
 
-If an error occurs, a red `ERROR:` message is shown and a dialog box is displayed.
+If an error occurs, an `ERROR:` message is shown in the log and a dialog box is displayed.
 
 The log is cleared each time **GO** is clicked, and can also be cleared with the **CLEAR** button.
 
 ---
 
-## 9. Progress Bar
+## 9. The Status Panel
+
+The **Status** panel (black background, green text) shows the current high-level operation state,
+such as which phase is running, how many files remain, or a final success/failure summary.
+It is updated less frequently than the Log panel and gives an at-a-glance view of progress.
+
+---
+
+## 10. Progress Bar
 
 The progress bar fills from 0 % to 100 % as files are processed.
 
@@ -185,7 +213,7 @@ The progress bar fills from 0 % to 100 % as files are processed.
 
 ---
 
-## 10. Known Limitations
+## 11. Known Limitations
 
 | Limitation | Detail |
 |---|---|
@@ -196,10 +224,11 @@ The progress bar fills from 0 % to 100 % as files are processed.
 | Schema prefixes other than `dbo` | Only the `dbo.` prefix is automatically removed; other schemas (e.g. `hr.`, `sales.`) must be handled manually |
 | Collations | `COLLATE` clauses are not altered; MariaDB uses its own collation names |
 | Computed columns | `AS (expression) PERSISTED` computed column syntax is not converted |
+| Individual BAK files | The "Individual or Consolidated .SQL files?" option outputs per-table files; ensure your output folder has sufficient space for large databases |
 
 ---
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 **The Browse… (folder) dialog does not open on Windows 10**  
 Ensure you are running the latest Windows 10 update. The folder picker uses the Windows Shell dialog which requires an up-to-date shell component.
@@ -214,11 +243,11 @@ This can happen if the file path contains a semicolon (`;`). Rename the file or 
 Ensure your antivirus software is not blocking the self-contained executable. Right-click → Properties → Unblock if necessary.
 
 **Converted SQL still has errors in MariaDB**  
-Review the [Known Limitations](#10-known-limitations) above. Complex T-SQL constructs such as `MERGE`, `PIVOT`, `TRY/CATCH`, and multi-schema objects will need manual editing after conversion.
+Review the [Known Limitations](#11-known-limitations) above. Complex T-SQL constructs such as `MERGE`, `PIVOT`, `TRY/CATCH`, and multi-schema objects will need manual editing after conversion.
 
 ---
 
-## 12. Frequently Asked Questions
+## 13. Frequently Asked Questions
 
 **Q: Does the app connect to SQL Server or MariaDB?**  
 A: No. It is entirely offline. It reads files from disk and writes converted files to disk only.

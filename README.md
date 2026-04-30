@@ -12,7 +12,11 @@
 
 **Dj-MsSql2Maria** is a portable, standalone Windows desktop application (.NET 9 WPF).
 Drop one or more SQL Server `.sql` files — or a `.bak` backup file — into Dj-MsSql2Maria,
-point it at an output folder, click **GO**, and receive a single consolidated, MariaDB-ready `.sql` file.
+point it at an output folder, click **GO**, and receive MariaDB-ready `.sql` output.
+
+When converting a BAK file you can independently choose whether to generate scripts for
+Tables and/or Data, and whether each should be written as a **single consolidated file** or as
+**individual per-table `.sql` files** (one script per table creation / one per table's data).
 
 No installer. No SQL Server. No internet connection. One `.exe`.
 
@@ -49,9 +53,11 @@ Output: `bin\Release\net9.0-windows\win-x64\publish\Dj-MsSql2Maria.exe`
 | **Single .SQL file** | Convert one MS SQL Server script |
 | **Multiple .SQL files** | Select many files; merged into one MariaDB output |
 | **BAK file** | Best-effort SQL text extraction (no SQL Server needed) |
-| **BAK options** | Choose Tables only, Data only, or both |
+| **BAK — Tables/Data toggle** | Choose Tables only, Data only, or both |
+| **BAK — Individual or Consolidated** | Per-table/data: one `.sql` file per object, or one consolidated output file (unchecked = consolidated) |
 | **Filename suffix** | Optionally append a suffix (default `_MariaDb`) to the output filename |
-| **Real-time log** | See each file processed as it happens |
+| **Real-time log** | Scrollable black-background panel (yellow text) showing each file processed |
+| **Status panel** | Scrollable black-background panel (green text) showing current operation state |
 | **Cancellable** | STOP button halts processing immediately |
 | **Portable EXE** | Single self-contained file, no runtime install required |
 

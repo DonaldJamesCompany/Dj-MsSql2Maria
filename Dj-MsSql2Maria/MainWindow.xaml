@@ -59,8 +59,14 @@
 
                 <!-- BAK-specific options -->
                 <StackPanel x:Name="PnlBakOptions" Visibility="Collapsed" Margin="0,4,0,0">
-                    <CheckBox x:Name="ChkBakTables" Content="Create MariaDB script for Tables?" IsChecked="True"/>
-                    <CheckBox x:Name="ChkBakData"   Content="Create MariaDB script for Data?"   IsChecked="True" Margin="0,3,0,0"/>
+                    <StackPanel Orientation="Horizontal">
+                        <CheckBox x:Name="ChkBakTables" Content="Create MariaDB script for Tables?" IsChecked="True" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="ChkBakTablesIndividual" Content="Individual or Consolidated .SQL files?" IsChecked="False" Margin="16,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
+                        <CheckBox x:Name="ChkBakData" Content="Create MariaDB script for Data?" IsChecked="True" VerticalAlignment="Center"/>
+                        <CheckBox x:Name="ChkBakDataIndividual" Content="Individual or Consolidated .SQL files?" IsChecked="False" Margin="16,0,0,0" VerticalAlignment="Center"/>
+                    </StackPanel>
                 </StackPanel>
             </StackPanel>
         </GroupBox>
@@ -87,15 +93,20 @@
 
         <!-- Log -->
         <GroupBox Header="Log">
-            <ScrollViewer Height="110" VerticalScrollBarVisibility="Auto">
+            <ScrollViewer Height="110" VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
                 <TextBox x:Name="TxtLog"
                          IsReadOnly="True"
                          TextWrapping="Wrap"
-                         Background="#FFF8F8F8"
+                         Background="#FF000000"
+                         Foreground="#FFFFFF00"
                          FontFamily="Consolas"
                          FontSize="11"
                          BorderThickness="0"
-                         VerticalScrollBarVisibility="Auto"/>
+                         VerticalAlignment="Stretch"
+                         VerticalContentAlignment="Top"
+                         HorizontalAlignment="Stretch"
+                         VerticalScrollBarVisibility="Disabled"/>
             </ScrollViewer>
         </GroupBox>
 
@@ -116,6 +127,9 @@
                          FontFamily="Consolas"
                          FontSize="11"
                          BorderThickness="0"
+                         VerticalAlignment="Stretch"
+                         VerticalContentAlignment="Top"
+                         HorizontalAlignment="Stretch"
                          VerticalScrollBarVisibility="Disabled"/>
             </ScrollViewer>
         </GroupBox>
