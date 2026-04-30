@@ -111,6 +111,18 @@ public partial class MainWindow : Window
             TxtSuffix.IsEnabled = ChkAppendSuffix.IsChecked == true;
     }
 
+    private void ChkIfExistsTables_Changed(object sender, RoutedEventArgs e)
+    {
+        if (CmbIfExistsTablesAction is not null)
+            CmbIfExistsTablesAction.IsEnabled = ChkIfExistsTables.IsChecked == true;
+    }
+
+    private void ChkIfExistsRecords_Changed(object sender, RoutedEventArgs e)
+    {
+        if (CmbIfExistsRecordsAction is not null)
+            CmbIfExistsRecordsAction.IsEnabled = ChkIfExistsRecords.IsChecked == true;
+    }
+
     private void BtnBrowseInput_Click(object sender, RoutedEventArgs e)
     {
         if (IsBakMode)

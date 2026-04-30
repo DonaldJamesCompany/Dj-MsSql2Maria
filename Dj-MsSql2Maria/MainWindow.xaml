@@ -91,6 +91,56 @@
             </StackPanel>
         </GroupBox>
 
+        <!-- Options -->
+        <GroupBox Header="Options">
+            <StackPanel>
+                <!-- Row 1: output file exists action -->
+                <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
+                    <Label Content="Action if output file exists:" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="CmbFileExistsAction" Width="130" VerticalAlignment="Center">
+                        <ComboBoxItem Content="Ask"          IsSelected="True"/>
+                        <ComboBoxItem Content="Overwrite"/>
+                        <ComboBoxItem Content="Skip"/>
+                        <ComboBoxItem Content="Error &amp; Exit"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Row 2: IF EXISTS for TABLES -->
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
+                    <CheckBox x:Name="ChkIfExistsTables"
+                              Content="Include IF EXISTS for TABLES in output .SQL?"
+                              IsChecked="True"
+                              VerticalAlignment="Center"
+                              Checked="ChkIfExistsTables_Changed"
+                              Unchecked="ChkIfExistsTables_Changed"/>
+                    <Label Content="Action (TABLES):" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="CmbIfExistsTablesAction" Width="130" VerticalAlignment="Center">
+                        <ComboBoxItem Content="Ask"          IsSelected="True"/>
+                        <ComboBoxItem Content="Overwrite"/>
+                        <ComboBoxItem Content="Skip"/>
+                        <ComboBoxItem Content="Error &amp; Exit"/>
+                    </ComboBox>
+                </StackPanel>
+
+                <!-- Row 3: IF EXISTS for RECORDS -->
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
+                    <CheckBox x:Name="ChkIfExistsRecords"
+                              Content="Include IF EXISTS for RECORDS in output .SQL?"
+                              IsChecked="True"
+                              VerticalAlignment="Center"
+                              Checked="ChkIfExistsRecords_Changed"
+                              Unchecked="ChkIfExistsRecords_Changed"/>
+                    <Label Content="Action (RECORDS):" Margin="12,0,0,0" VerticalAlignment="Center"/>
+                    <ComboBox x:Name="CmbIfExistsRecordsAction" Width="130" VerticalAlignment="Center">
+                        <ComboBoxItem Content="Ask"          IsSelected="True"/>
+                        <ComboBoxItem Content="Overwrite"/>
+                        <ComboBoxItem Content="Skip"/>
+                        <ComboBoxItem Content="Error &amp; Exit"/>
+                    </ComboBox>
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
+
         <!-- Log -->
         <GroupBox Header="Log">
             <ScrollViewer Height="110" VerticalScrollBarVisibility="Auto"
