@@ -115,7 +115,7 @@ Every generated output file begins with a header block **not** present in the so
 -- Source: <original filename(s)>
 ```
 
-When **Individual or Consolidated .SQL files?** is checked for Tables and/or Data in BAK mode,
+When **Consolidate CREATE TABLE into single script?** or **Consolidate INSERT DATA into single script?** is checked in BAK mode,
 each per-table file also receives its own header identifying the table name and script type.
 
 ### A3 — Structural Fix: Trailing Comma

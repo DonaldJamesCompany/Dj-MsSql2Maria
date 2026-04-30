@@ -69,8 +69,8 @@ The output will be located in `bin\Release\net9.0-windows\win-x64\publish\`.
 │    File:  [________________________________] [Browse…]              │
 │                                                                     │
 │  (BAK mode only)                                                    │
-│    ☑ Create MariaDB script for Tables?  ☐ Individual or Consolidated .SQL files? │
-│    ☑ Create MariaDB script for Data?    ☐ Individual or Consolidated .SQL files? │
+│    ☑ Create MariaDB script for Tables?  ☐ Consolidate CREATE TABLE into single script? │
+│    ☑ Create MariaDB script for Data?    ☐ Consolidate INSERT DATA into single script?  │
 ├─────────────────────────────────────────────────────────────────────┤
 │  Output                                                             │
 │    Folder: [____________________________] [Browse…]                 │
@@ -133,22 +133,29 @@ All selected files are concatenated and converted into a single output file name
    | Checkbox | Default | Meaning |
    |---|---|---|
    | **Create MariaDB script for Tables?** | ✅ Checked | Extract `CREATE TABLE` statements |
-   | **Individual or Consolidated .SQL files?** (Tables row) | ☐ Unchecked | When **unchecked** (default): all table scripts go into one consolidated output file. When **checked**: one separate `.sql` file is generated per table's creation script. |
+   | **Consolidate CREATE TABLE into single script?** (Tables row) | ☐ Unchecked | When **unchecked** (default): one separate `.sql` file is generated per table's creation script. When **checked**: all CREATE TABLE scripts are written into one consolidated output file. |
    | **Create MariaDB script for Data?** | ✅ Checked | Extract `INSERT` statements |
-   | **Individual or Consolidated .SQL files?** (Data row) | ☐ Unchecked | When **unchecked** (default): all data inserts go into one consolidated output file. When **checked**: one separate `.sql` file is generated per table's data population script. |
+   | **Consolidate INSERT DATA into single script?** (Data row) | ☐ Unchecked | When **unchecked** (default): one separate `.sql` file is generated per table's data population script. When **checked**: all INSERT DATA scripts are written into one consolidated output file. |
 
 4. Choose an output folder.
 5. *(Optional)* Set the filename suffix.
 6. Click **GO**.
 
-**Individual file naming** (when the "Individual or Consolidated" checkbox is checked):
+**Consolidate file naming** (when a "Consolidate … into single script?" checkbox is checked):
+
+When **unchecked** (default), one file per table is written:
 
 | Script type | Example output filename |
 |---|---|
 | Table creation | `MyDatabase_TableName_tables_MariaDb.sql` |
 | Data population | `MyDatabase_TableName_data_MariaDb.sql` |
 
-The output for **consolidated** mode (default) is named after the BAK file, e.g. `MyDatabase_MariaDb.sql`.
+When **checked** (consolidated), a single file is written per script type:
+
+| Script type | Example output filename |
+|---|---|
+| Table creation | `MyDatabase_MariaDb_tables.sql` |
+| Data population | `MyDatabase_MariaDb_data.sql` |
 
 ---
 

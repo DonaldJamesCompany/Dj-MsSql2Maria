@@ -54,7 +54,8 @@ Output: `bin\Release\net9.0-windows\win-x64\publish\Dj-MsSql2Maria.exe`
 | **Multiple .SQL files** | Select many files; merged into one MariaDB output |
 | **BAK file** | Best-effort SQL text extraction (no SQL Server needed) |
 | **BAK — Tables/Data toggle** | Choose Tables only, Data only, or both |
-| **BAK — Individual or Consolidated** | Per-table/data: one `.sql` file per object, or one consolidated output file (unchecked = consolidated) |
+| **BAK — Consolidate CREATE TABLE** | When checked: all CREATE TABLE scripts go into one consolidated `.sql` file. When unchecked (default): one `.sql` file per table. |
+| **BAK — Consolidate INSERT DATA** | When checked: all INSERT DATA scripts go into one consolidated `.sql` file. When unchecked (default): one `.sql` file per table's data. |
 | **Filename suffix** | Optionally append a suffix (default `_MariaDb`) to the output filename |
 | **Real-time log** | Scrollable black-background panel (yellow text) showing each file processed |
 | **Status panel** | Scrollable black-background panel (green text) showing current operation state |
