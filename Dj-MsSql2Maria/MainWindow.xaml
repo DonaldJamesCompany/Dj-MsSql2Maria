@@ -61,11 +61,11 @@
                 <StackPanel x:Name="PnlBakOptions" Visibility="Collapsed" Margin="0,4,0,0">
                     <StackPanel Orientation="Horizontal">
                         <CheckBox x:Name="ChkBakTables" Content="Create MariaDB script for Tables?" IsChecked="True" VerticalAlignment="Center"/>
-                        Content="Consolidate CREATE TABLE into single script?"
+                        <CheckBox x:Name="ChkBakTablesIndividual" Content="Consolidate CREATE TABLE into single script?" Margin="12,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                         <CheckBox x:Name="ChkBakData" Content="Create MariaDB script for Data?" IsChecked="True" VerticalAlignment="Center"/>
-                        Content="Consolidate INSERT DATA into single script?"
+                        <CheckBox x:Name="ChkBakDataIndividual" Content="Consolidate INSERT DATA into single script?" Margin="12,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
                 </StackPanel>
             </StackPanel>
