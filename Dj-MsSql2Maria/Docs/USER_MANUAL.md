@@ -318,7 +318,7 @@ A: The current version is GUI-only. Command-line support may be added in a futur
 
 | Area | Change |
 |---|---|
-| CSV import | Commas inside quoted fields (e.g. `"13,10"`, `"12,12,12,12"`) no longer split into extra SQL columns |
+| CSV import | Commas inside quoted fields (e.g. `"13,10"`, `"12,12,12,12"`) no longer split into extra SQL columns. Two compounding bugs fixed: system-locale comma-as-decimal, and `NumberStyles.Number` allowing thousands-group commas (`"13,10"` → `1310`). Now uses `NumberStyles.Float` + `InvariantCulture` so `"13,10"` is correctly emitted as `'13,10'` |
 | CSV import | RFC 4180 `""` escaped double-quotes inside a field are decoded correctly (e.g. `""bob", "jim""` → `"bob", "jim"`) |
 | CSV import | Spurious empty trailing field that was appended to every parsed row is removed |
 | CSV import | Leading whitespace before an opening quote (`, "field"`) is now treated as a quoted field |

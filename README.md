@@ -176,7 +176,7 @@ Full list → [`docs/CONVERSION_REFERENCE.md — NOT CONVERTED section`](Dj-MsSq
 ### 2.1.1 — CSV quoted-field parsing fixes
 
 - **Fix: commas inside quoted CSV fields no longer split into extra columns.**  
-  Values such as `"13,10"` or `"12,12,12,12"` were previously broken across multiple SQL columns because `double.TryParse` (with system culture) treated the comma as a decimal separator. Parsing now uses `CultureInfo.InvariantCulture` so these values are correctly emitted as single quoted strings.
+  Values such as `"13,10"` or `"12,12,12,12"` were previously broken across multiple SQL columns. Two compounding bugs were fixed: (1) `double.TryParse` used the system locale which could treat `,` as a decimal separator; (2) even with `InvariantCulture`, `NumberStyles.Number` includes `AllowThousands`, so `"13,10"` was parsed as `1310` and emitted as the bare unquoted tokens `13,10` in the SQL. Numeric inference now uses `NumberStyles.Float` (no thousands grouping) with `InvariantCulture`, so `"13,10"` is correctly emitted as `'13,10'`.
 - **Fix: embedded double-quotes inside CSV fields now handled correctly.**  
   RFC 4180 `""` escape sequences (e.g. `""bob", "jim", and "anne""`) are decoded to their literal `"` characters and the entire field is preserved as one SQL string value.
 - **Fix: spurious empty field at end of every parsed CSV row removed.**  

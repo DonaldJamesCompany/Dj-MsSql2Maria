@@ -104,7 +104,7 @@ internal static class SqlConverter
             for (int c = 0; c < headers.Length; c++)
             {
                 string cell = validIndices[c] < row.Length ? row[validIndices[c]] : string.Empty;
-                if (!string.IsNullOrEmpty(cell) && !double.TryParse(cell, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
+                if (!string.IsNullOrEmpty(cell) && !double.TryParse(cell, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
                     isNumeric[c] = false;
             }
         }
@@ -141,7 +141,7 @@ internal static class SqlConverter
                 string raw = c < row.Length ? row[c] : string.Empty;
                 if (string.IsNullOrEmpty(raw))
                     values[c] = "NULL";
-                else if (isNumeric[c] && double.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
+                else if (isNumeric[c] && double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
                     values[c] = raw;
                 else
                     values[c] = $"'{EscapeSqlString(raw)}'";
