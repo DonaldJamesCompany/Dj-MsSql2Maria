@@ -272,8 +272,8 @@ internal static class SqlConverter
 
     private static string ConvertBracketIdentifiers(string sql)
     {
-        // [identifier] → `identifier`
-        return Regex.Replace(sql, @"\[(\w[\w\s]*)\]", "`$1`");
+        // [identifier] → `identifier`  (any chars except [ and ] are valid, e.g. [LOCKS - Copy])
+        return Regex.Replace(sql, @"\[([^\[\]]+)\]", "`$1`");
     }
 
     private static string ConvertStringFunctions(string sql)
@@ -313,7 +313,9 @@ internal static class SqlConverter
 
     private static string ConvertSchemaPrefixes(string sql)
     {
-        // dbo.TableName → TableName  (remove schema prefix)
+        // [dbo].TableName → TableName  (bracketed schema prefix — must run before bracket conversion)
+        sql = Regex.Replace(sql, @"\[dbo\]\s*\.\s*", string.Empty, RegexOptions.IgnoreCase);
+        // dbo.TableName → TableName  (bare schema prefix)
         sql = Regex.Replace(sql, @"\bdbo\s*\.\s*", string.Empty, RegexOptions.IgnoreCase);
         return sql;
     }
@@ -402,13 +404,15 @@ internal static class SqlConverter
     /// </summary>
     private static string UnquoteDataTypes(string sql)
     {
-        // Remove backticks surrounding known SQL type keywords:  `VARCHAR` → VARCHAR
-        sql = Regex.Replace(sql, @"`(\w+)`",
-            m => SqlTypeKeywords.Contains(m.Groups[1].Value) ? m.Groups[1].Value : m.Value);
-
-        // Handle any remaining [TYPE(size)] that wasn't caught earlier, e.g. [DECIMAL(19,4)]
-        sql = Regex.Replace(sql, @"\[([A-Za-z_]\w*(?:\s*\([^)]*\))?)\]",
-            m => m.Groups[1].Value);
+        // Remove backticks surrounding known SQL type keywords, including any size spec.
+        // e.g. `VARCHAR` → VARCHAR, `DECIMAL(19,4)` → DECIMAL(19,4)
+        // The capture group includes an optional (size) so the size is preserved in the output.
+        sql = Regex.Replace(sql, @"`(\w+(?:\s*\([^`\)]*\))?)`",
+            m =>
+            {
+                var keyword = Regex.Match(m.Groups[1].Value, @"^\w+").Value;
+                return SqlTypeKeywords.Contains(keyword) ? m.Groups[1].Value : m.Value;
+            });
 
         return sql;
     }

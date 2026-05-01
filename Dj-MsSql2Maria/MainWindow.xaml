@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Dj_MsSql2Maria"
         mc:Ignorable="d"
-        Title="MS SQL to MariaDB 1.1.3 (Dj-MsSql2Maria)"
+        Title="MS SQL to MariaDB 1.1.7 (Dj-MsSql2Maria)"
         Icon="pack://application:,,,/Icons/DJ-MsSql2Maria_Icon.ico"
         ResizeMode="CanMinimize"
         SizeToContent="Height"
@@ -75,10 +75,15 @@
         <GroupBox Header="Output">
             <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,2,0,2">
-                    <Label Content="Folder:" Width="50"/>
-                    <TextBox x:Name="TxtOutputFolder" Width="310" IsReadOnly="True"/>
+                    <Label Content="Folder:" Width="80"/>
+                    <TextBox x:Name="TxtOutputFolder" Width="280" IsReadOnly="True"/>
                     <Button Content="Browse…" Margin="4,0,0,0"
                             Click="BtnBrowseOutput_Click"/>
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
+                    <Label Content="Database Name:" Width="80"/>
+                    <TextBox x:Name="TxtDatabaseName" Width="280"
+                             ToolTip="Target MariaDB database name (required). Used for CREATE DATABASE and USE statements in the output SQL."/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
                     <CheckBox x:Name="ChkAppendSuffix"

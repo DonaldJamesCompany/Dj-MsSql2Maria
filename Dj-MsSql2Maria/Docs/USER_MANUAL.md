@@ -1,6 +1,6 @@
-﻿# MS SQL to MariaDB 1.1.3 (Dj-MsSql2Maria) — End-User Manual
+﻿# MS SQL to MariaDB 1.1.7 (Dj-MsSql2Maria) — End-User Manual
 
-> **Version 1.1.3** | .NET 9 · Windows x64  
+> **Version 1.1.7** | .NET 9 · Windows x64  
 > Converts Microsoft SQL Server `.SQL` scripts and `.BAK` backup files into MariaDB-compatible SQL.
 
 ---
@@ -98,8 +98,9 @@ The output will be located in `bin\Release\net9.0-windows\win-x64\publish\`.
 2. Click **Browse…** next to the **File** field — a multi-select file dialog opens.
 3. Select one or more `.sql` files (hold **Ctrl** or **Shift** to select several), then click **Open**.
 4. Click **Browse…** next to the **Folder** field and choose where to save the output.
-5. *(Optional)* Check **Append to filename?** and edit the suffix (default `_MariaDb`).
-6. Click **GO**.
+5. Enter the **Database Name** — this is the target MariaDB database. It is added as `CREATE DATABASE IF NOT EXISTS` and `USE` statements at the top of every output file.
+6. *(Optional)* Check **Append to filename?** and edit the suffix (default `_MariaDb`).
+7. Click **GO**.
 
 All selected files are converted and merged into a single output file named `output_MariaDb.sql`  
 (or `output.sql` if the suffix option is unchecked).
@@ -125,8 +126,9 @@ All selected files are converted and merged into a single output file named `out
    | **Consolidate INSERT DATA into single script?** (Data row) | ☐ Unchecked | When **unchecked** (default): one separate `.sql` file is generated per table's data population script. When **checked**: all INSERT DATA scripts are written into one consolidated output file. |
 
 4. Choose an output folder.
-5. *(Optional)* Set the filename suffix.
-6. Click **GO**.
+5. Enter the **Database Name** (required — see SQL File steps above).
+6. *(Optional)* Set the filename suffix.
+7. Click **GO**.
 
 **Consolidate file naming** (when a "Consolidate … into single script?" checkbox is checked):
 
@@ -262,4 +264,4 @@ A: The current version is GUI-only. Command-line support may be added in a futur
 
 ---
 
-*MS SQL to MariaDB 1.1.3 (Dj-MsSql2Maria) is open source. Source code: https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*
+*MS SQL to MariaDB 1.1.7 (Dj-MsSql2Maria) is open source. Source code: https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*

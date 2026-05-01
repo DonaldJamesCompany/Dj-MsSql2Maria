@@ -174,6 +174,15 @@ public partial class MainWindow : Window
             return;
         }
 
+        string dbName = TxtDatabaseName.Text.Trim();
+        if (string.IsNullOrWhiteSpace(dbName))
+        {
+            MessageBox.Show("Please enter a Target Database Name.\n\nThis is used to generate CREATE DATABASE and USE statements at the top of the output SQL.",
+                "Database name required", MessageBoxButton.OK, MessageBoxImage.Warning);
+            TxtDatabaseName.Focus();
+            return;
+        }
+
         string suffix = ChkAppendSuffix.IsChecked == true
             ? TxtSuffix.Text.Trim()
             : string.Empty;
@@ -208,13 +217,13 @@ public partial class MainWindow : Window
                 bool consolidateData   = ChkBakDataIndividual.IsChecked   == true;
                 AppLog($"BAK file: {inputFiles[0]}");
                 AppLog($"Include tables: {tables}  |  Include data: {data}");
-                await RunBakConversionAsync(inputFiles[0], outputFolder, suffix,
+                await RunBakConversionAsync(inputFiles[0], outputFolder, suffix, dbName,
                     tables, data, consolidateTables, consolidateData, _cts.Token);
             }
             else
             {
                 AppLog($"Input file(s): {string.Join(", ", inputFiles)}");
-                await RunSqlConversionAsync(inputFiles, outputFolder, suffix, _cts.Token);
+                await RunSqlConversionAsync(inputFiles, outputFolder, suffix, dbName, _cts.Token);
             }
 
             AppLog("Run completed successfully.");
@@ -270,7 +279,7 @@ public partial class MainWindow : Window
     // -- Conversion runners ---------------------------------------------------
 
     private async Task RunSqlConversionAsync(
-        string[] inputFiles, string outputFolder, string suffix,
+        string[] inputFiles, string outputFolder, string suffix, string dbName,
         CancellationToken ct)
     {
         AppLog($"SQL conversion starting — {inputFiles.Length} file(s).");
@@ -283,7 +292,12 @@ public partial class MainWindow : Window
         string outFile = Path.Combine(outputFolder, baseName + suffix + ".sql");
         AppLog($"Output file: {outFile}");
 
-        await using var writer = new StreamWriter(outFile, append: false, System.Text.Encoding.UTF8);
+        await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+        // Write database header
+        await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
+        await writer.WriteLineAsync($"USE `{dbName}`;");
+        await writer.WriteLineAsync();
 
         for (int i = 0; i < inputFiles.Length; i++)
         {
@@ -316,7 +330,7 @@ public partial class MainWindow : Window
     }
 
     private async Task RunBakConversionAsync(
-        string bakFile, string outputFolder, string suffix,
+        string bakFile, string outputFolder, string suffix, string dbName,
         bool includeTables, bool includeData,
         bool consolidateTables, bool consolidateData,
         CancellationToken ct)
@@ -360,7 +374,11 @@ public partial class MainWindow : Window
                     $"{baseName}{suffix}_{typeSuffix}.sql");
                 AppLog($"Consolidated output: {outFile}");
 
-                await using var writer = new StreamWriter(outFile, append: false, System.Text.Encoding.UTF8);
+                await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+                await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
+                await writer.WriteLineAsync($"USE `{dbName}`;");
+                await writer.WriteLineAsync();
 
                 foreach (var seg in segs)
                 {
@@ -393,7 +411,10 @@ public partial class MainWindow : Window
                     AppLog($"  Writing individual file: {outFile}");
                     Status($"Writing {typeSuffix} file {done}/{total}: {seg.TableName}  ({pct:F0}%)");
 
-                    await using var writer = new StreamWriter(outFile, append: false, System.Text.Encoding.UTF8);
+                    await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                    await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
+                    await writer.WriteLineAsync($"USE `{dbName}`;");
+                    await writer.WriteLineAsync();
                     string converted = SqlConverter.ConvertToMariaDb(seg.Sql);
                     await writer.WriteLineAsync(converted);
                     SetProgress(pct);
