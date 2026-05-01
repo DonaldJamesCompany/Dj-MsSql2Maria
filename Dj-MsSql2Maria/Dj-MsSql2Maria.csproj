@@ -27,9 +27,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="Icons\DJ-MsSql2Maria_Icon.ico">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Resource Include="Icons\DJ-MsSql2Maria_Icon.ico"/>
   </ItemGroup>
 
 </Project>
