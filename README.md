@@ -12,7 +12,7 @@
 
 **Dj-MsSql2Maria** is a portable, standalone Windows desktop application (.NET 9 WPF).
 Drop one or more SQL Server `.sql` files — or a `.bak` backup file — into Dj-MsSql2Maria,
-point it at an output folder, enter your **Target Database Name**, click **GO**, and receive MariaDB-ready `.sql` output.
+point it at an output folder, enter your **DB Name**, click **GO**, and receive MariaDB-ready `.sql` output.
 
 Every output file begins with `CREATE DATABASE IF NOT EXISTS` and `USE` statements for the database name you provide, so it can be imported directly into a fresh MariaDB instance without any manual editing.
 
@@ -34,7 +34,7 @@ No installer. No SQL Server. No internet connection. One `.exe`.
 
 1. Download `Dj-MsSql2Maria.exe` from [Releases](https://github.com/DonaldJamesCompany/Dj-MsSql2Maria/releases).
 2. Double-click to run — no installation needed.
-3. In Dj-MsSql2Maria, choose your input type, browse for your file(s), pick an output folder, enter your **Target Database Name**, and click **GO**.
+3. In Dj-MsSql2Maria, choose your input type, browse for your file(s), pick an output folder, enter your **DB Name**, and click **GO**.
 
 To build from source:
 

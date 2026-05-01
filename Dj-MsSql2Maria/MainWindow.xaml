@@ -81,7 +81,7 @@
                             Click="BtnBrowseOutput_Click"/>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,4,0,2">
-                    <Label Content="Database Name:" Width="80"/>
+                    <Label Content="DB Name:" Width="80"/>
                     <TextBox x:Name="TxtDatabaseName" Width="280"
                              ToolTip="Target MariaDB database name (required). Used for CREATE DATABASE and USE statements in the output SQL."/>
                 </StackPanel>

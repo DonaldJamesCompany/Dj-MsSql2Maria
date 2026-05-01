@@ -98,7 +98,7 @@ The output will be located in `bin\Release\net9.0-windows\win-x64\publish\`.
 2. Click **Browse…** next to the **File** field — a multi-select file dialog opens.
 3. Select one or more `.sql` files (hold **Ctrl** or **Shift** to select several), then click **Open**.
 4. Click **Browse…** next to the **Folder** field and choose where to save the output.
-5. Enter the **Database Name** — this is the target MariaDB database. It is added as `CREATE DATABASE IF NOT EXISTS` and `USE` statements at the top of every output file.
+5. Enter the **DB Name** — this is the target MariaDB database. It is added as `CREATE DATABASE IF NOT EXISTS` and `USE` statements at the top of every output file.
 6. *(Optional)* Check **Append to filename?** and edit the suffix (default `_MariaDb`).
 7. Click **GO**.
 
@@ -126,7 +126,7 @@ All selected files are converted and merged into a single output file named `out
    | **Consolidate INSERT DATA into single script?** (Data row) | ☐ Unchecked | When **unchecked** (default): one separate `.sql` file is generated per table's data population script. When **checked**: all INSERT DATA scripts are written into one consolidated output file. |
 
 4. Choose an output folder.
-5. Enter the **Database Name** (required — see SQL File steps above).
+5. Enter the **DB Name** (required — see SQL File steps above).
 6. *(Optional)* Set the filename suffix.
 7. Click **GO**.
 
