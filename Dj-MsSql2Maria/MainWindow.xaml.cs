@@ -197,7 +197,8 @@ public partial class MainWindow : Window
 
         // Create a new timestamped log file for this run
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
-        _currentLogFile = Path.Combine(outputFolder, $"Dj-MsSql2Maria_{timestamp}.log");
+        string exeFolder = AppContext.BaseDirectory;
+        _currentLogFile = Path.Combine(exeFolder, $"Dj-MsSql2Maria_{timestamp}.log");
         BtnViewLog.IsEnabled = false;
 
         _cts = new CancellationTokenSource();
