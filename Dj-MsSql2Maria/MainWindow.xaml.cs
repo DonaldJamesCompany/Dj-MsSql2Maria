@@ -190,6 +190,25 @@ public partial class MainWindow : Window
         string[] inputFiles = TxtInputPath.Text.Split(';', StringSplitOptions.RemoveEmptyEntries);
         string outputFolder = TxtOutputFolder.Text;
 
+        // Read Options controls
+        string fileExistsAction    = (CmbFileExistsAction.SelectedItem   as ComboBoxItem)?.Content?.ToString() ?? "Ask";
+        bool   ifExistsTables      = ChkIfExistsTables.IsChecked == true;
+        string tablesAction        = ifExistsTables
+            ? (CmbIfExistsTablesAction.SelectedItem  as ComboBoxItem)?.Content?.ToString() ?? "Ask"
+            : "None";
+        bool   ifExistsRecords     = ChkIfExistsRecords.IsChecked == true;
+        string recordsAction       = ifExistsRecords
+            ? (CmbIfExistsRecordsAction.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "Ask"
+            : "None";
+
+        // Build ConversionOptions from selections:
+        //   Tables "Overwrite" ? DROP TABLE IF EXISTS prepended before CREATE TABLE
+        //   Records "Overwrite" or "Skip" ? INSERT IGNORE (skip dups without error)
+        var conversionOptions = new ConversionOptions(
+            DropTableIfExists: ifExistsTables  && tablesAction  == "Overwrite",
+            InsertIgnore:      ifExistsRecords && (recordsAction == "Overwrite" || recordsAction == "Skip")
+        );
+
         // Create a new timestamped log file for this run
         string timestamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
         string exeFolder = AppContext.BaseDirectory;
@@ -207,6 +226,8 @@ public partial class MainWindow : Window
             AppLog($"Dj-MsSql2Maria started — {DateTime.Now:yyyy-MM-dd HH:mm:ss}");
             AppLog($"Mode: {(CmbInputType.SelectedItem as ComboBoxItem)?.Content}");
             AppLog($"Output folder: {outputFolder}");
+            AppLog($"File exists action: {fileExistsAction}");
+            AppLog($"IF EXISTS tables: {(ifExistsTables ? tablesAction : "disabled")}  |  IF EXISTS records: {(ifExistsRecords ? recordsAction : "disabled")}");
             Status("Initialising conversion…");
 
             if (IsBakMode)
@@ -218,12 +239,14 @@ public partial class MainWindow : Window
                 AppLog($"BAK file: {inputFiles[0]}");
                 AppLog($"Include tables: {tables}  |  Include data: {data}");
                 await RunBakConversionAsync(inputFiles[0], outputFolder, suffix, dbName,
-                    tables, data, consolidateTables, consolidateData, _cts.Token);
+                    tables, data, consolidateTables, consolidateData,
+                    fileExistsAction, conversionOptions, _cts.Token);
             }
             else
             {
                 AppLog($"Input file(s): {string.Join(", ", inputFiles)}");
-                await RunSqlConversionAsync(inputFiles, outputFolder, suffix, dbName, _cts.Token);
+                await RunSqlConversionAsync(inputFiles, outputFolder, suffix, dbName,
+                    fileExistsAction, conversionOptions, _cts.Token);
             }
 
             AppLog("Run completed successfully.");
@@ -280,6 +303,7 @@ public partial class MainWindow : Window
 
     private async Task RunSqlConversionAsync(
         string[] inputFiles, string outputFolder, string suffix, string dbName,
+        string fileExistsAction, ConversionOptions options,
         CancellationToken ct)
     {
         AppLog($"SQL conversion starting — {inputFiles.Length} file(s).");
@@ -291,6 +315,12 @@ public partial class MainWindow : Window
 
         string outFile = Path.Combine(outputFolder, baseName + suffix + ".sql");
         AppLog($"Output file: {outFile}");
+
+        if (File.Exists(outFile))
+        {
+            bool proceed = await HandleFileExistsAsync(outFile, fileExistsAction, ct);
+            if (!proceed) return;
+        }
 
         await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
@@ -312,7 +342,7 @@ public partial class MainWindow : Window
             AppLog($"  File read — {sql.Length:N0} chars. Applying conversions…");
             Status($"[{i + 1}/{inputFiles.Length}] Converting: {fileName}");
 
-            string converted = SqlConverter.ConvertToMariaDb(sql);
+            string converted = SqlConverter.ConvertToMariaDb(sql, options);
             AppLog($"  Conversion complete — {converted.Length:N0} chars. Writing output…");
 
             await writer.WriteLineAsync(converted);
@@ -333,6 +363,7 @@ public partial class MainWindow : Window
         string bakFile, string outputFolder, string suffix, string dbName,
         bool includeTables, bool includeData,
         bool consolidateTables, bool consolidateData,
+        string fileExistsAction, ConversionOptions options,
         CancellationToken ct)
     {
         string bakName = Path.GetFileName(bakFile);
@@ -374,6 +405,12 @@ public partial class MainWindow : Window
                     $"{baseName}{suffix}_{typeSuffix}.sql");
                 AppLog($"Consolidated output: {outFile}");
 
+                if (File.Exists(outFile))
+                {
+                    bool proceed = await HandleFileExistsAsync(outFile, fileExistsAction, ct);
+                    if (!proceed) return;
+                }
+
                 await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
                 await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
@@ -387,7 +424,7 @@ public partial class MainWindow : Window
                     double pct = 60 + done * 40.0 / Math.Max(total, 1);
                     AppLog($"  Converting {typeSuffix} segment {done}/{total}: {seg.TableName}…");
                     Status($"Converting {typeSuffix} {done}/{total}: {seg.TableName}  ({pct:F0}%)");
-                    string converted = SqlConverter.ConvertToMariaDb(seg.Sql);
+                    string converted = SqlConverter.ConvertToMariaDb(seg.Sql, options);
                     await writer.WriteLineAsync(converted);
                     await writer.WriteLineAsync();
                     SetProgress(pct);
@@ -411,11 +448,17 @@ public partial class MainWindow : Window
                     AppLog($"  Writing individual file: {outFile}");
                     Status($"Writing {typeSuffix} file {done}/{total}: {seg.TableName}  ({pct:F0}%)");
 
+                    if (File.Exists(outFile))
+                    {
+                        bool proceed = await HandleFileExistsAsync(outFile, fileExistsAction, ct);
+                        if (!proceed) continue;
+                    }
+
                     await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
                     await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
                     await writer.WriteLineAsync($"USE `{dbName}`;");
                     await writer.WriteLineAsync();
-                    string converted = SqlConverter.ConvertToMariaDb(seg.Sql);
+                    string converted = SqlConverter.ConvertToMariaDb(seg.Sql, options);
                     await writer.WriteLineAsync(converted);
                     SetProgress(pct);
                 }
@@ -431,5 +474,41 @@ public partial class MainWindow : Window
         SetProgress(100);
         AppLog("BAK conversion complete.");
         Status($"?  Complete — output in: {outputFolder}");
+    }
+
+    // -- File-exists handler --------------------------------------------------
+
+    /// <summary>
+    /// Applies the user-selected "Action if output file exists" policy.
+    /// Returns true if the caller should proceed (overwrite), false to skip.
+    /// Throws <see cref="OperationCanceledException"/> on "Error &amp; Exit".
+    /// </summary>
+    private Task<bool> HandleFileExistsAsync(string filePath, string action, CancellationToken ct)
+    {
+        switch (action)
+        {
+            case "Overwrite":
+                AppLog($"  Output file exists — overwriting: {filePath}");
+                return Task.FromResult(true);
+
+            case "Skip":
+                AppLog($"  Output file exists — skipping: {filePath}");
+                Status($"Skipped (file exists): {Path.GetFileName(filePath)}");
+                return Task.FromResult(false);
+
+            case "Error & Exit":
+                throw new InvalidOperationException(
+                    $"Output file already exists and action is set to 'Error & Exit':\n{filePath}");
+
+            default: // "Ask"
+            {
+                var result = MessageBox.Show(
+                    $"Output file already exists:\n{filePath}\n\nOverwrite it?",
+                    "File exists", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                bool proceed = result == MessageBoxResult.Yes;
+                AppLog($"  Output file exists — user chose {(proceed ? "overwrite" : "skip")}: {filePath}");
+                return Task.FromResult(proceed);
+            }
+        }
     }
 }

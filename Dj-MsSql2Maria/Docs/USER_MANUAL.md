@@ -1,6 +1,6 @@
-﻿# MS SQL to MariaDB 1.1.7 (Dj-MsSql2Maria) — End-User Manual
+﻿# MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria) — End-User Manual
 
-> **Version 1.1.7** | .NET 9 · Windows x64  
+> **Version 1.1.8**
 > Converts Microsoft SQL Server `.SQL` scripts and `.BAK` backup files into MariaDB-compatible SQL.
 
 ---
@@ -264,4 +264,4 @@ A: The current version is GUI-only. Command-line support may be added in a futur
 
 ---
 
-*MS SQL to MariaDB 1.1.7 (Dj-MsSql2Maria) is open source. Source code: https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*
+*MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria) is open source.

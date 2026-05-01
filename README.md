@@ -1,4 +1,4 @@
-﻿# MS SQL to MariaDB 1.1.7 (Dj-MsSql2Maria)
+﻿# MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria)
 
 > **Convert Microsoft SQL Server `.SQL` scripts and `.BAK` backup files into MariaDB-compatible SQL — offline, instantly, with no SQL Server instance required.**
 
@@ -185,4 +185,4 @@ Pull requests are welcome. Please open an issue first to discuss significant cha
 
 ---
 
-*MS SQL to MariaDB 1.1.7 (Dj-MsSql2Maria) — https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*
+*MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria) — https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*

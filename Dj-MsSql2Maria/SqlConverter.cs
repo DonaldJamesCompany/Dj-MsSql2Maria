@@ -10,6 +10,19 @@ internal sealed record BakSegment(string TableName, BakSegmentType Type, string 
 
 internal enum BakSegmentType { Table, Data }
 
+/// <summary>Controls how the converter emits DDL/DML guards in the output SQL.</summary>
+internal sealed record ConversionOptions(
+    /// <summary>Wrap every CREATE TABLE with DROP TABLE IF EXISTS … before it.</summary>
+    bool DropTableIfExists,
+    /// <summary>Use INSERT IGNORE instead of INSERT for data rows.</summary>
+    bool InsertIgnore
+)
+{
+    public static readonly ConversionOptions Default = new(
+        DropTableIfExists: false,
+        InsertIgnore: false);
+}
+
 /// <summary>
 /// Converts MS SQL Server DDL/DML syntax to MariaDB-compatible SQL,
 /// and extracts embedded SQL text from .BAK backup files.
@@ -19,16 +32,17 @@ internal static class SqlConverter
     // ── Public entry points ──────────────────────────────────────────────────
 
     /// <summary>Converts a complete MS SQL script string to MariaDB syntax.</summary>
-    public static string ConvertToMariaDb(string sql)
+    public static string ConvertToMariaDb(string sql, ConversionOptions? options = null)
     {
+        options ??= ConversionOptions.Default;
         if (string.IsNullOrWhiteSpace(sql)) return sql;
 
         sql = StripComments(sql);
         sql = RemoveUnsupportedStatements(sql);
         sql = ConvertSchemaPrefixes(sql);      // must run before bracket conversion
         sql = ConvertBracketIdentifiers(sql);  // converts [name] → `name`
-        sql = UnquoteDataTypes(sql);           // strips backticks from type keywords
-        sql = ConvertDatatypes(sql);
+        sql = UnquoteDataTypes(sql);           // unquote bracket-quoted type names (e.g. `nvarchar` → nvarchar in column-type position)
+        sql = ConvertDatatypes(sql);           // map bare MSSQL type names → MariaDB equivalents
         sql = ConvertIdentityToAutoIncrement(sql);
         sql = ConvertDefaultConstraints(sql);
         sql = ConvertStringFunctions(sql);
@@ -41,6 +55,12 @@ internal static class SqlConverter
         sql = ConvertWithNolock(sql);
         sql = FixTrailingCommasBeforeCloseParen(sql);
         sql = EnsureStatementSemicolons(sql);
+
+        // Options-driven post-passes
+        if (options.DropTableIfExists)
+            sql = AddDropTableIfExists(sql);
+        if (options.InsertIgnore)
+            sql = ConvertInsertToInsertIgnore(sql);
 
         return sql.Trim();
     }
@@ -211,37 +231,45 @@ internal static class SqlConverter
 
         foreach (var (mssql, maria) in map)
         {
-            // Replace as whole word; preserve any following (size) spec unless type has fixed replacement
+            // Replace as whole word. Backtick-quoted identifiers are safe here because
+            // UnquoteDataTypes already ran and only unquoted tokens in column-type position;
+            // table/column names that share a type keyword remain backtick-quoted.
             if (maria.Contains('('))
             {
                 // Fixed replacement: also remove any existing (n) trailing size
                 sql = Regex.Replace(sql,
-                    $@"\b{Regex.Escape(mssql)}\b(\s*\(\s*\w+\s*\))?",
+                    $@"(?<!`)\b{Regex.Escape(mssql)}\b(\s*\(\s*[\w,\s]+\s*\))?(?!`)",
                     maria, RegexOptions.IgnoreCase);
             }
             else
             {
                 sql = Regex.Replace(sql,
-                    $@"\b{Regex.Escape(mssql)}\b",
+                    $@"(?<!`)\b{Regex.Escape(mssql)}\b(?!`)",
                     maria, RegexOptions.IgnoreCase);
             }
         }
 
-        // NVARCHAR(MAX) / VARCHAR(MAX) → LONGTEXT
-        sql = Regex.Replace(sql, @"\bVARCHAR\s*\(\s*MAX\s*\)", "LONGTEXT", RegexOptions.IgnoreCase);
-        sql = Regex.Replace(sql, @"\bVARBINARY\s*\(\s*MAX\s*\)", "LONGBLOB", RegexOptions.IgnoreCase);
+        // NVARCHAR(MAX) / VARCHAR(MAX) → LONGTEXT  (leading and/or trailing backtick tolerated)
+        sql = Regex.Replace(sql, @"`?VARCHAR`?\s*\(\s*MAX\s*\)", "LONGTEXT", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"`?VARBINARY`?\s*\(\s*MAX\s*\)", "LONGBLOB", RegexOptions.IgnoreCase);
 
         return sql;
     }
 
     private static string ConvertIdentityToAutoIncrement(string sql)
     {
-        // IDENTITY(seed, incr) → AUTO_INCREMENT (MariaDB only supports AUTO_INCREMENT; seed/incr ignored)
+        // IDENTITY(seed, incr) → AUTO_INCREMENT PRIMARY KEY
         sql = Regex.Replace(sql,
             @"\bIDENTITY\s*\(\s*\d+\s*,\s*\d+\s*\)",
-            "AUTO_INCREMENT", RegexOptions.IgnoreCase);
+            "AUTO_INCREMENT PRIMARY KEY", RegexOptions.IgnoreCase);
 
-        sql = Regex.Replace(sql, @"\bIDENTITY\b", "AUTO_INCREMENT", RegexOptions.IgnoreCase);
+        sql = Regex.Replace(sql, @"\bIDENTITY\b", "AUTO_INCREMENT PRIMARY KEY", RegexOptions.IgnoreCase);
+
+        // Safety pass: if AUTO_INCREMENT exists without PRIMARY KEY (e.g. already in source), add it
+        sql = Regex.Replace(sql,
+            @"\bAUTO_INCREMENT\b(?!\s+PRIMARY\s+KEY)",
+            "AUTO_INCREMENT PRIMARY KEY", RegexOptions.IgnoreCase);
+
         return sql;
     }
 
@@ -391,8 +419,12 @@ internal static class SqlConverter
         "CHAR","VARCHAR","NCHAR","NVARCHAR","TEXT","LONGTEXT","MEDIUMTEXT","TINYTEXT",
         "BLOB","LONGBLOB","MEDIUMBLOB","TINYBLOB","VARBINARY","BINARY",
         "DATE","DATETIME","TIMESTAMP","TIME","YEAR",
-        "GEOMETRY","GEOMETRY","JSON","UUID",
+        "GEOMETRY","JSON","UUID",
         "AUTO_INCREMENT",
+        // MSSQL-only types that appear bracket-quoted in source and need unquoting before ConvertDatatypes
+        "MONEY","SMALLMONEY","NTEXT","IMAGE","UNIQUEIDENTIFIER",
+        "SMALLDATETIME","DATETIME2","DATETIMEOFFSET","XML",
+        "HIERARCHYID","GEOGRAPHY","ROWVERSION","SQL_VARIANT",
     };
 
     /// <summary>
@@ -404,15 +436,23 @@ internal static class SqlConverter
     /// </summary>
     private static string UnquoteDataTypes(string sql)
     {
-        // Remove backticks surrounding known SQL type keywords, including any size spec.
-        // e.g. `VARCHAR` → VARCHAR, `DECIMAL(19,4)` → DECIMAL(19,4)
-        // The capture group includes an optional (size) so the size is preserved in the output.
-        sql = Regex.Replace(sql, @"`(\w+(?:\s*\([^`\)]*\))?)`",
-            m =>
-            {
-                var keyword = Regex.Match(m.Groups[1].Value, @"^\w+").Value;
-                return SqlTypeKeywords.Contains(keyword) ? m.Groups[1].Value : m.Value;
-            });
+        // Pass 1: `TYPE(size)` → TYPE(size)   e.g. `DECIMAL(19,4)` → DECIMAL(19,4)
+        // Safe: a backtick-quoted word immediately followed by (...) can only be a type-with-size,
+        // never a table or column name in CREATE TABLE column-definition syntax.
+        sql = Regex.Replace(sql, @"`([A-Za-z_]\w*)\(([^)]*)\)`",
+            m => SqlTypeKeywords.Contains(m.Groups[1].Value)
+                ? $"{m.Groups[1].Value}({m.Groups[2].Value})"
+                : m.Value);
+
+        // Pass 2: unquote `TYPE` only when it appears in a column-definition type position,
+        // i.e. immediately after a backtick-quoted identifier + whitespace (the column name).
+        // Pattern: `colname` `TYPE`  →  `colname` TYPE
+        // This avoids unquoting table names like `TEXT` in CREATE TABLE `TEXT`(
+        sql = Regex.Replace(sql,
+            @"(`[^`]+`)\s+`([A-Za-z_]\w*)`",
+            m => SqlTypeKeywords.Contains(m.Groups[2].Value)
+                ? $"{m.Groups[1].Value} {m.Groups[2].Value}"
+                : m.Value);
 
         return sql;
     }
@@ -437,5 +477,30 @@ internal static class SqlConverter
             m => m.Groups[1].Value + ";" + m.Groups[2].Value);
 
         return sql;
+    }
+
+    /// <summary>
+    /// Prepends DROP TABLE IF EXISTS `tbl`; before each CREATE TABLE `tbl`( block.
+    /// Used when the user selects "Overwrite" for the IF EXISTS TABLES option.
+    /// </summary>
+    private static string AddDropTableIfExists(string sql)
+    {
+        return Regex.Replace(sql,
+            @"(CREATE\s+TABLE\s+(`[^`]+`)\s*\()",
+            "DROP TABLE IF EXISTS $2;\r\n$1",
+            RegexOptions.IgnoreCase);
+    }
+
+    /// <summary>
+    /// Converts plain INSERT INTO … to INSERT IGNORE INTO … so duplicate-key rows
+    /// are skipped rather than causing an error.
+    /// Used when the user selects "Skip" or "Overwrite" for the IF EXISTS RECORDS option.
+    /// </summary>
+    private static string ConvertInsertToInsertIgnore(string sql)
+    {
+        return Regex.Replace(sql,
+            @"\bINSERT\s+INTO\b",
+            "INSERT IGNORE INTO",
+            RegexOptions.IgnoreCase);
     }
 }
