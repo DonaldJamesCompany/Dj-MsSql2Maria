@@ -1,6 +1,6 @@
-# MS SQL to MariaDB 1.0.0 (Dj-MsSql2Maria) — End-User Manual
+﻿# MS SQL to MariaDB 1.1.3 (Dj-MsSql2Maria) — End-User Manual
 
-> **Version 1.0** | .NET 9 · Windows x64  
+> **Version 1.1.3** | .NET 9 · Windows x64  
 > Converts Microsoft SQL Server `.SQL` scripts and `.BAK` backup files into MariaDB-compatible SQL.
 
 ---
@@ -12,9 +12,8 @@
 3. [Installation](#3-installation)
 4. [Application Layout](#4-application-layout)
 5. [Step-by-Step Usage](#5-step-by-step-usage)
-   - 5.1 [Convert a Single SQL File](#51-convert-a-single-sql-file)
-   - 5.2 [Convert Multiple SQL Files](#52-convert-multiple-sql-files)
-   - 5.3 [Convert from a BAK Backup File](#53-convert-from-a-bak-backup-file)
+   - 5.1 [Convert SQL File(s)](#51-convert-sql-files)
+   - 5.2 [Convert from a BAK Backup File](#52-convert-from-a-bak-backup-file)
 6. [Output File Naming](#6-output-file-naming)
 7. [Button Reference](#7-button-reference)
 8. [The Log Panel](#8-the-log-panel)
@@ -28,7 +27,7 @@
 
 ## 1. Overview
 
-**Dj-MsSql2Maria** is a portable, standalone Windows desktop application. It reads one or more Microsoft SQL Server `.SQL` script files, or a SQL Server `.BAK` backup file, and produces a single consolidated MariaDB-compatible `.SQL` output file.
+**Dj-MsSql2Maria** is a portable, standalone Windows desktop application. It reads one or more Microsoft SQL Server `.SQL` script files, or a SQL Server `.BAK` backup file, and produces MariaDB-compatible `.SQL` output. SQL files are merged into a single output file; BAK files can produce consolidated or per-table output files.
 
 No installation is required — the application ships as a single self-contained `.exe`.
 
@@ -65,7 +64,7 @@ The output will be located in `bin\Release\net9.0-windows\win-x64\publish\`.
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Input                                                              │
-│    Type:  [ Single .SQL File ▼ ]                                    │
+│    Type:  [ Input SQL File(s) ▼ ]                                    │
 │    File:  [________________________________] [Browse…]              │
 │                                                                     │
 │  (BAK mode only)                                                    │
@@ -93,38 +92,26 @@ The output will be located in `bin\Release\net9.0-windows\win-x64\publish\`.
 
 ## 5. Step-by-Step Usage
 
-### 5.1 Convert a Single SQL File
+### 5.1 Convert SQL File(s)
 
-1. In Dj-MsSql2Maria's **Type** drop-down, select **Single .SQL File** (the default).
-2. Click **Browse…** next to the **File** field.
-3. Navigate to and select your `.sql` file.
+1. In Dj-MsSql2Maria's **Type** drop-down, select **Input SQL File(s)** (the default).
+2. Click **Browse…** next to the **File** field — a multi-select file dialog opens.
+3. Select one or more `.sql` files (hold **Ctrl** or **Shift** to select several), then click **Open**.
 4. Click **Browse…** next to the **Folder** field and choose where to save the output.
 5. *(Optional)* Check **Append to filename?** and edit the suffix (default `_MariaDb`).
 6. Click **GO**.
 
-The output file will be named after the input file, e.g. `Customers.sql` → `Customers_MariaDb.sql`.
+All selected files are converted and merged into a single output file named `output_MariaDb.sql`  
+(or `output.sql` if the suffix option is unchecked).
 
 ---
 
-### 5.2 Convert Multiple SQL Files
-
-1. In Dj-MsSql2Maria's **Type** drop-down, select **Multiple .SQL Files**.
-2. Click **Browse…** — a standard multi-select file dialog opens.
-3. Hold **Ctrl** or **Shift** to select several `.sql` files, then click **Open**.
-4. Choose an output folder.
-5. *(Optional)* Set the filename suffix.
-6. Click **GO**.
-
-All selected files are concatenated and converted into a single output file named `output_MariaDb.sql` (or `output.sql` if the suffix option is unchecked).
-
----
-
-### 5.3 Convert from a BAK Backup File
+### 5.2 Convert from a BAK Backup File
 
 > **Important:** BAK extraction is a *best-effort* text scan.  
 > For a complete, guaranteed extraction, attach the BAK to a SQL Server instance,
 > script the objects using SSMS, then convert the resulting `.sql` files using
-> Single or Multiple mode.
+> **Input SQL File(s)** mode.
 
 1. In Dj-MsSql2Maria's **Type** drop-down, select **MS SQL Server .BAK File**.
 2. Click **Browse…** — the file dialog is filtered to `.bak` files only.
@@ -163,9 +150,8 @@ When **checked** (consolidated), a single file is written per script type:
 
 | Input Mode | Base name | With suffix `_MariaDb` |
 |---|---|---|
-| Single .SQL File | Same as input file | `OriginalName_MariaDb.sql` |
-| Multiple .SQL Files | `output` | `output_MariaDb.sql` |
-| BAK File | Same as BAK file | `BackupName_MariaDb.sql` |
+| Input SQL File(s) | `output` | `output_MariaDb.sql` |
+| BAK File | Same as BAK file | `BackupName_MariaDb_tables.sql` / `BackupName_MariaDb_data.sql` |
 
 The suffix text field is freely editable. Clear it to use an empty suffix, or type any valid filename characters.
 
@@ -225,7 +211,7 @@ The progress bar fills from 0 % to 100 % as files are processed.
 | Limitation | Detail |
 |---|---|
 | BAK extraction is best-effort | Only UTF-16 and UTF-8 text segments are scanned; binary data pages, compressed backups, and encrypted backups cannot be decoded without a live SQL Server |
-| `SELECT TOP n` | Converted to a comment hint; you must manually move `LIMIT n` to the end of the query |
+| `SELECT TOP n` | `TOP n` is removed during conversion; add `LIMIT n` manually at the end of the query |
 | `DATEDIFF` with non-day units | MariaDB's `DATEDIFF` is days-only; sub-day precision results need manual review |
 | Stored Procedures & Functions | Syntax inside procedure bodies is converted on a best-effort basis; complex T-SQL logic (cursors, `TRY/CATCH`, `MERGE`) requires manual review |
 | Schema prefixes other than `dbo` | Only the `dbo.` prefix is automatically removed; other schemas (e.g. `hr.`, `sales.`) must be handled manually |
@@ -276,4 +262,4 @@ A: The current version is GUI-only. Command-line support may be added in a futur
 
 ---
 
-*MS SQL to MariaDB 1.0.0 (Dj-MsSql2Maria) is open source. Source code: https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*
+*MS SQL to MariaDB 1.1.3 (Dj-MsSql2Maria) is open source. Source code: https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*

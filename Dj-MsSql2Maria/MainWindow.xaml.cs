@@ -23,10 +23,6 @@ public partial class MainWindow : Window
         CmbInputType.SelectedItem is ComboBoxItem item &&
         item.Content?.ToString()?.Contains(".BAK") == true;
 
-    private bool IsMultiMode =>
-        CmbInputType.SelectedItem is ComboBoxItem item &&
-        item.Content?.ToString()?.Contains("Multiple") == true;
-
     private void SetBusy(bool busy)
     {
         BtnGo.IsEnabled    = !busy;
@@ -135,26 +131,16 @@ public partial class MainWindow : Window
             if (dlg.ShowDialog() == true)
                 TxtInputPath.Text = dlg.FileName;
         }
-        else if (IsMultiMode)
-        {
-            var dlg = new OpenFileDialog
-            {
-                Title     = "Select SQL files",
-                Filter    = "SQL files (*.sql)|*.sql|All files (*.*)|*.*",
-                Multiselect = true
-            };
-            if (dlg.ShowDialog() == true)
-                TxtInputPath.Text = string.Join(";", dlg.FileNames);
-        }
         else
         {
             var dlg = new OpenFileDialog
             {
-                Title  = "Select SQL file",
-                Filter = "SQL files (*.sql)|*.sql|All files (*.*)|*.*"
+                Title       = "Select SQL file(s)",
+                Filter      = "SQL files (*.sql)|*.sql|All files (*.*)|*.*",
+                Multiselect = true
             };
             if (dlg.ShowDialog() == true)
-                TxtInputPath.Text = dlg.FileName;
+                TxtInputPath.Text = string.Join(";", dlg.FileNames);
         }
     }
 

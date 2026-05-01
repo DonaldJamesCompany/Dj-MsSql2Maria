@@ -25,13 +25,14 @@ internal static class SqlConverter
 
         sql = StripComments(sql);
         sql = RemoveUnsupportedStatements(sql);
+        sql = ConvertSchemaPrefixes(sql);      // must run before bracket conversion
+        sql = ConvertBracketIdentifiers(sql);  // converts [name] → `name`
+        sql = UnquoteDataTypes(sql);           // strips backticks from type keywords
         sql = ConvertDatatypes(sql);
         sql = ConvertIdentityToAutoIncrement(sql);
         sql = ConvertDefaultConstraints(sql);
-        sql = ConvertBracketIdentifiers(sql);
         sql = ConvertStringFunctions(sql);
         sql = ConvertDateFunctions(sql);
-        sql = ConvertSchemaPrefixes(sql);
         sql = ConvertGoStatements(sql);
         sql = ConvertSetStatements(sql);
         sql = ConvertNVarcharLiterals(sql);
@@ -39,6 +40,7 @@ internal static class SqlConverter
         sql = ConvertIfExists(sql);
         sql = ConvertWithNolock(sql);
         sql = FixTrailingCommasBeforeCloseParen(sql);
+        sql = EnsureStatementSemicolons(sql);
 
         return sql.Trim();
     }
@@ -377,5 +379,59 @@ internal static class SqlConverter
     {
         // Remove trailing commas before ) that sometimes arise from stripping columns
         return Regex.Replace(sql, @",\s*\)", ")");
+    }
+
+    // Known SQL data-type keywords that must NOT be backtick-quoted
+    private static readonly HashSet<string> SqlTypeKeywords = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "BIGINT","INT","INTEGER","SMALLINT","TINYINT","BIT","BOOL","BOOLEAN",
+        "DECIMAL","NUMERIC","FLOAT","DOUBLE","REAL",
+        "CHAR","VARCHAR","NCHAR","NVARCHAR","TEXT","LONGTEXT","MEDIUMTEXT","TINYTEXT",
+        "BLOB","LONGBLOB","MEDIUMBLOB","TINYBLOB","VARBINARY","BINARY",
+        "DATE","DATETIME","TIMESTAMP","TIME","YEAR",
+        "GEOMETRY","GEOMETRY","JSON","UUID",
+        "AUTO_INCREMENT",
+    };
+
+    /// <summary>
+    /// After bracket-to-backtick conversion, data-type names that were originally
+    /// bracket-quoted end up as `VARCHAR`, `DECIMAL`, etc.  Strip those backticks
+    /// so the final SQL contains bare type keywords.
+    /// Also handles residual [TYPE(size)] patterns that the bracket regex missed
+    /// because the closing ] came after the parenthetical.
+    /// </summary>
+    private static string UnquoteDataTypes(string sql)
+    {
+        // Remove backticks surrounding known SQL type keywords:  `VARCHAR` → VARCHAR
+        sql = Regex.Replace(sql, @"`(\w+)`",
+            m => SqlTypeKeywords.Contains(m.Groups[1].Value) ? m.Groups[1].Value : m.Value);
+
+        // Handle any remaining [TYPE(size)] that wasn't caught earlier, e.g. [DECIMAL(19,4)]
+        sql = Regex.Replace(sql, @"\[([A-Za-z_]\w*(?:\s*\([^)]*\))?)\]",
+            m => m.Groups[1].Value);
+
+        return sql;
+    }
+
+    /// <summary>
+    /// Ensures every top-level DDL/DML statement ends with a semicolon.
+    /// Adds ';' after the closing ')' of CREATE TABLE blocks and after
+    /// standalone INSERT/UPDATE/DELETE/DROP/ALTER statements.
+    /// </summary>
+    private static string EnsureStatementSemicolons(string sql)
+    {
+        // For CREATE TABLE ... ) blocks: add ; after the final closing paren if absent
+        sql = Regex.Replace(sql,
+            @"(\)\s*)(\r?\n\s*\r?\n|\r?\n\s*(CREATE|INSERT|UPDATE|DELETE|DROP|ALTER|SELECT)\b)",
+            m => m.Groups[1].Value.TrimEnd().EndsWith(";")
+                ? m.Value
+                : m.Groups[1].Value.TrimEnd() + ";\r\n\r\n" + m.Groups[2].Value.TrimStart('\r', '\n', ' '),
+            RegexOptions.IgnoreCase);
+
+        // Ensure the very last statement ends with ;
+        sql = Regex.Replace(sql, @"(\))(\s*)$",
+            m => m.Groups[1].Value + ";" + m.Groups[2].Value);
+
+        return sql;
     }
 }
