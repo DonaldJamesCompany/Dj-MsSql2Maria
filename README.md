@@ -1,6 +1,6 @@
-﻿# MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria)
+﻿# MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria)
 
-> **Convert Microsoft SQL Server `.SQL` scripts and `.BAK` backup files into MariaDB-compatible SQL — offline, instantly, with no SQL Server instance required.**
+> **Convert Microsoft SQL Server `.SQL` scripts and `.BAK` backup files — or plain `.CSV` data files — into MariaDB-compatible SQL — offline, instantly, with no SQL Server instance required.**
 
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D4?logo=windows)](https://github.com/DonaldJamesCompany/Dj-MsSql2Maria/releases)
@@ -11,14 +11,14 @@
 ## What Is It?
 
 **Dj-MsSql2Maria** is a portable, standalone Windows desktop application (.NET 9 WPF).
-Drop one or more SQL Server `.sql` files — or a `.bak` backup file — into Dj-MsSql2Maria,
+Drop one or more SQL Server `.sql` files, a `.bak` backup file, or one or more `.csv` data files into Dj-MsSql2Maria,
 point it at an output folder, enter your **DB Name**, click **GO**, and receive MariaDB-ready `.sql` output.
 
-Every output file begins with `CREATE DATABASE IF NOT EXISTS` and `USE` statements for the database name you provide, so it can be imported directly into a fresh MariaDB instance without any manual editing.
+Scripts that create tables begin with `CREATE DATABASE IF NOT EXISTS` and `USE` statements for the database name you provide. Data-only scripts begin with `USE` only. This means every output file targets the correct database and can be imported directly into a fresh MariaDB instance without manual editing.
 
-When converting a BAK file you can independently choose whether to generate scripts for
+When converting a BAK or CSV file you can independently choose whether to generate scripts for
 Tables and/or Data, and whether each should be written as a **single consolidated file** or as
-**individual per-table `.sql` files** (one script per table creation / one per table's data).
+**individual per-source `.sql` files** (one script per table creation / one per source file's data).
 
 No installer. No SQL Server. No internet connection. One `.exe`.
 
@@ -53,10 +53,11 @@ Output: `bin\Release\net9.0-windows\win-x64\publish\Dj-MsSql2Maria.exe`
 | Feature | Detail |
 |---|---|
 | **Input SQL File(s)** | Select one or more MS SQL Server `.sql` files; all are converted and merged into one MariaDB output |
+| **Import .CSV File(s)** | Select one or more `.csv` files; column types are inferred automatically; shares the same Tables/Data and consolidation options as BAK mode |
 | **BAK file** | Best-effort SQL text extraction (no SQL Server needed) |
-| **BAK — Tables/Data toggle** | Choose Tables only, Data only, or both |
-| **BAK — Consolidate CREATE TABLE** | When checked: all CREATE TABLE scripts go into one consolidated `.sql` file. When unchecked (default): one `.sql` file per table. |
-| **BAK — Consolidate INSERT DATA** | When checked: all INSERT DATA scripts go into one consolidated `.sql` file. When unchecked (default): one `.sql` file per table's data. |
+| **Tables / Data toggle** | Available for both BAK and CSV: choose Tables only, Data only, or both |
+| **Consolidate CREATE TABLE** | When checked: all CREATE TABLE scripts go into one consolidated `.sql` file. When unchecked (default): one `.sql` file per source. |
+| **Consolidate INSERT DATA** | When checked: all INSERT DATA scripts go into one consolidated `.sql` file. When unchecked (default): one `.sql` file per source. |
 | **Filename suffix** | Optionally append a suffix (default `_MariaDb`) to the output filename |
 | **Real-time log** | Scrollable black-background panel (yellow text) showing each file processed |
 | **Status panel** | Scrollable black-background panel (green text) showing current operation state |
@@ -69,7 +70,8 @@ Output: `bin\Release\net9.0-windows\win-x64\publish\Dj-MsSql2Maria.exe`
 
 | Input Mode | Example input | Example output |
 |---|---|---|
-| Input SQL File(s) | `Customers.sql` or `Customers.sql` + `Orders.sql` | `output_MariaDb.sql` |
+| Input SQL File(s) | `Customers.sql` (single) or `Customers.sql` + `Orders.sql` (multi) | Single: `Customers_MariaDb.sql` · Multi: `output_MariaDb.sql` |
+| Import .CSV File(s) | `Customers.csv`, `Orders.csv` | Single CSV: `Customers_MariaDb.sql` (combined). Multiple CSVs: `_CreateTables_MariaDb.sql` + `_Data_MariaDb.sql` (consolidated) **or** `Customers_CreateTable_MariaDb.sql` etc. (per-file) |
 | MS SQL Server .BAK File | `MyDatabase.bak` | `MyDatabase_MariaDb_tables.sql`, `MyDatabase_MariaDb_data.sql` |
 
 ---
@@ -185,4 +187,4 @@ Pull requests are welcome. Please open an issue first to discuss significant cha
 
 ---
 
-*MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria) — https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*
+*MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) — https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*

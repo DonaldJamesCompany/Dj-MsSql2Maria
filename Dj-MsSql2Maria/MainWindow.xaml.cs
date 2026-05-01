@@ -23,6 +23,10 @@ public partial class MainWindow : Window
         CmbInputType.SelectedItem is ComboBoxItem item &&
         item.Content?.ToString()?.Contains(".BAK") == true;
 
+    private bool IsCsvMode =>
+        CmbInputType.SelectedItem is ComboBoxItem csvItem &&
+        csvItem.Content?.ToString()?.Contains(".CSV") == true;
+
     private void SetBusy(bool busy)
     {
         BtnGo.IsEnabled    = !busy;
@@ -95,7 +99,10 @@ public partial class MainWindow : Window
         if (!IsLoaded) return;
 
         bool bak = IsBakMode;
-        PnlBakOptions.Visibility = bak ? Visibility.Visible : Visibility.Collapsed;
+        bool csv = IsCsvMode;
+        // Both BAK and CSV share the tables/data options panel
+        PnlBakOptions.Visibility = (bak || csv) ? Visibility.Visible  : Visibility.Collapsed;
+        PnlCsvOptions.Visibility = csv          ? Visibility.Visible  : Visibility.Collapsed;
 
         // Reset path when mode changes
         TxtInputPath.Text = string.Empty;
@@ -130,6 +137,17 @@ public partial class MainWindow : Window
             };
             if (dlg.ShowDialog() == true)
                 TxtInputPath.Text = dlg.FileName;
+        }
+        else if (IsCsvMode)
+        {
+            var dlg = new OpenFileDialog
+            {
+                Title       = "Select CSV file(s)",
+                Filter      = "CSV files (*.csv)|*.csv|All files (*.*)|*.*",
+                Multiselect = true
+            };
+            if (dlg.ShowDialog() == true)
+                TxtInputPath.Text = string.Join(";", dlg.FileNames);
         }
         else
         {
@@ -242,6 +260,19 @@ public partial class MainWindow : Window
                     tables, data, consolidateTables, consolidateData,
                     fileExistsAction, conversionOptions, _cts.Token);
             }
+            else if (IsCsvMode)
+            {
+                bool tables            = ChkBakTables.IsChecked          == true;
+                bool data              = ChkBakData.IsChecked             == true;
+                bool consolidateTables = ChkBakTablesIndividual.IsChecked == true;
+                bool consolidateData   = ChkBakDataIndividual.IsChecked   == true;
+                AppLog($"CSV file(s): {string.Join(", ", inputFiles)}");
+                AppLog($"Include tables: {tables}  |  Include data: {data}");
+                AppLog($"Consolidate tables: {consolidateTables}  |  Consolidate data: {consolidateData}");
+                await RunCsvConversionAsync(inputFiles, outputFolder, suffix, dbName,
+                    tables, data, consolidateTables, consolidateData,
+                    fileExistsAction, conversionOptions, _cts.Token);
+            }
             else
             {
                 AppLog($"Input file(s): {string.Join(", ", inputFiles)}");
@@ -324,7 +355,7 @@ public partial class MainWindow : Window
 
         await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
-        // Write database header
+        // SQL input files contain CREATE TABLE statements, so include CREATE DATABASE.
         await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
         await writer.WriteLineAsync($"USE `{dbName}`;");
         await writer.WriteLineAsync();
@@ -395,7 +426,7 @@ public partial class MainWindow : Window
         int done  = 0;
 
         async Task WriteSegmentsAsync(
-            List<BakSegment> segs, string typeSuffix, bool consolidate)
+            List<BakSegment> segs, string typeSuffix, bool consolidate, bool isTableScript)
         {
             if (segs.Count == 0) return;
 
@@ -413,7 +444,8 @@ public partial class MainWindow : Window
 
                 await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
-                await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
+                if (isTableScript)
+                    await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
                 await writer.WriteLineAsync($"USE `{dbName}`;");
                 await writer.WriteLineAsync();
 
@@ -455,7 +487,8 @@ public partial class MainWindow : Window
                     }
 
                     await using var writer = new StreamWriter(outFile, append: false, new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-                    await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
+                    if (isTableScript)
+                        await writer.WriteLineAsync($"CREATE DATABASE IF NOT EXISTS `{dbName}`;");
                     await writer.WriteLineAsync($"USE `{dbName}`;");
                     await writer.WriteLineAsync();
                     string converted = SqlConverter.ConvertToMariaDb(seg.Sql, options);
@@ -468,12 +501,200 @@ public partial class MainWindow : Window
             }
         }
 
-        await WriteSegmentsAsync(tableSegments, "tables", consolidateTables);
-        await WriteSegmentsAsync(dataSegments,  "data",   consolidateData);
+        await WriteSegmentsAsync(tableSegments, "tables", consolidateTables, isTableScript: true);
+        await WriteSegmentsAsync(dataSegments,  "data",   consolidateData,   isTableScript: false);
 
         SetProgress(100);
         AppLog("BAK conversion complete.");
         Status($"?  Complete — output in: {outputFolder}");
+    }
+
+    // -- File-exists handler --------------------------------------------------
+
+    /// <summary>
+    /// Converts a set of CSV files to MariaDB SQL output files, respecting the
+    /// user's table/data and consolidation choices.
+    /// </summary>
+    private async Task RunCsvConversionAsync(
+        string[] inputFiles, string outputFolder, string suffix, string dbName,
+        bool includeTables, bool includeData,
+        bool consolidateTables, bool consolidateData,
+        string fileExistsAction, ConversionOptions options,
+        CancellationToken ct)
+    {
+        if (!includeTables && !includeData)
+        {
+            AppLog("CSV conversion skipped — no output type selected (Tables and Data both unchecked).");
+            Status("Nothing to do — enable Tables and/or Data.");
+            return;
+        }
+
+        AppLog($"CSV conversion starting — {inputFiles.Length} file(s).");
+        Status($"Converting {inputFiles.Length} CSV file(s)…");
+
+        var enc = new System.Text.UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
+        // Headers: CREATE DATABASE only belongs in scripts that create tables.
+        string tableHeader = $"CREATE DATABASE IF NOT EXISTS `{dbName}`;\r\nUSE `{dbName}`;\r\n\r\n";
+        string dataHeader  = $"USE `{dbName}`;\r\n\r\n";
+
+        // Collect per-file results first (one Task.Run per file)
+        var results = new List<(string TableName, string CreateSql, string DataSql)>();
+        for (int i = 0; i < inputFiles.Length; i++)
+        {
+            ct.ThrowIfCancellationRequested();
+            string path     = inputFiles[i];
+            string fileName = Path.GetFileName(path);
+            double pct      = (i + 1) * 100.0 / inputFiles.Length;
+
+            Status($"[{i + 1}/{inputFiles.Length}] Parsing: {fileName}");
+            AppLog($"  Parsing CSV: {path}");
+
+            var (createSql, dataSql) = await Task.Run(
+                () => SqlConverter.CsvToMariaDb(path, options, ct), ct);
+
+            string tableName = Path.GetFileNameWithoutExtension(path);
+            results.Add((tableName, createSql, dataSql));
+            SetProgress(pct * 0.6); // first 60% is parsing
+            AppLog($"  Parsed: {fileName}");
+        }
+
+        // ?? Single CSV: write one combined output file named after the source ??
+        if (inputFiles.Length == 1)
+        {
+            string tableName  = results[0].TableName;
+            string outFile    = Path.Combine(outputFolder, $"{tableName}{suffix}.sql");
+            bool   writeOut   = true;
+
+            if (File.Exists(outFile))
+            {
+                bool proceed = await HandleFileExistsAsync(outFile, fileExistsAction, ct);
+                if (!proceed) { AppLog($"Skipped (file exists): {outFile}"); writeOut = false; }
+            }
+
+            if (writeOut)
+            {
+                await using var w = new StreamWriter(outFile, append: false, enc);
+                // Use CREATE DATABASE header when tables are included; USE-only when data-only.
+                await w.WriteAsync(includeTables ? tableHeader : dataHeader);
+                if (includeTables)
+                {
+                    await w.WriteLineAsync(results[0].CreateSql);
+                    await w.WriteLineAsync();
+                }
+                if (includeData)
+                {
+                    await w.WriteLineAsync(results[0].DataSql);
+                }
+                AppLog($"Output file: {outFile}");
+            }
+
+            SetProgress(100);
+            AppLog("CSV conversion complete.");
+            Status($"?  Complete — {Path.GetFileName(outFile)}");
+            Log($"?  Done. Output in: {outputFolder}");
+            return;
+        }
+
+        SetProgress(65);
+
+        // ?? Multiple CSVs — Tables output ?????????????????????????????????????
+        if (includeTables)
+        {
+            if (consolidateTables)
+            {
+                // Single consolidated tables file
+                string tablesFile = Path.Combine(outputFolder, $"_CreateTables{suffix}.sql");
+                bool writeTables = true;
+                if (File.Exists(tablesFile))
+                {
+                    bool proceed = await HandleFileExistsAsync(tablesFile, fileExistsAction, ct);
+                    if (!proceed) { AppLog("Skipped tables file (already exists)."); writeTables = false; }
+                }
+                if (writeTables)
+                {
+                    await using var tw = new StreamWriter(tablesFile, append: false, enc);
+                    await tw.WriteAsync(tableHeader);
+                    foreach (var (_, createSql, _) in results)
+                    {
+                        await tw.WriteLineAsync(createSql);
+                        await tw.WriteLineAsync();
+                    }
+                    AppLog($"Tables file: {tablesFile}");
+                }
+            }
+            else
+            {
+                // One tables file per CSV
+                for (int i = 0; i < results.Count; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var (tableName, createSql, _) = results[i];
+                    string outFile = Path.Combine(outputFolder, $"{tableName}_CreateTable{suffix}.sql");
+                    if (File.Exists(outFile))
+                    {
+                        bool proceed = await HandleFileExistsAsync(outFile, fileExistsAction, ct);
+                        if (!proceed) { AppLog($"Skipped: {outFile}"); continue; }
+                    }
+                    await using var tw = new StreamWriter(outFile, append: false, enc);
+                    await tw.WriteAsync(tableHeader);
+                    await tw.WriteLineAsync(createSql);
+                    AppLog($"  Table file: {outFile}");
+                }
+            }
+        }
+
+        SetProgress(80);
+
+        // ?? Multiple CSVs — Data output ????????????????????????????????????????
+        if (includeData)
+        {
+            if (consolidateData)
+            {
+                // Single consolidated data file
+                string dataFile = Path.Combine(outputFolder, $"_Data{suffix}.sql");
+                bool writeData = true;
+                if (File.Exists(dataFile))
+                {
+                    bool proceed = await HandleFileExistsAsync(dataFile, fileExistsAction, ct);
+                    if (!proceed) { AppLog("Skipped data file (already exists)."); writeData = false; }
+                }
+                if (writeData)
+                {
+                    await using var dw = new StreamWriter(dataFile, append: false, enc);
+                    await dw.WriteAsync(dataHeader);
+                    foreach (var (_, _, dataSql) in results)
+                    {
+                        await dw.WriteLineAsync(dataSql);
+                        await dw.WriteLineAsync();
+                    }
+                    AppLog($"Data file: {dataFile}");
+                }
+            }
+            else
+            {
+                // One data file per CSV
+                for (int i = 0; i < results.Count; i++)
+                {
+                    ct.ThrowIfCancellationRequested();
+                    var (tableName, _, dataSql) = results[i];
+                    string outFile = Path.Combine(outputFolder, $"{tableName}_Data{suffix}.sql");
+                    if (File.Exists(outFile))
+                    {
+                        bool proceed = await HandleFileExistsAsync(outFile, fileExistsAction, ct);
+                        if (!proceed) { AppLog($"Skipped: {outFile}"); continue; }
+                    }
+                    await using var dw = new StreamWriter(outFile, append: false, enc);
+                    await dw.WriteAsync(dataHeader);
+                    await dw.WriteLineAsync(dataSql);
+                    AppLog($"  Data file: {outFile}");
+                }
+            }
+        }
+
+        SetProgress(100);
+        AppLog("CSV conversion complete.");
+        Status($"?  Complete — output in: {outputFolder}");
+        Log($"?  Done. Output in: {outputFolder}");
     }
 
     // -- File-exists handler --------------------------------------------------

@@ -1,7 +1,7 @@
-﻿# MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria) — End-User Manual
+﻿# MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) — End-User Manual
 
-> **Version 1.1.8**
-> Converts Microsoft SQL Server `.SQL` scripts and `.BAK` backup files into MariaDB-compatible SQL.
+> **Version 2.0.1**
+> Converts Microsoft SQL Server `.SQL` scripts, `.BAK` backup files, and `.CSV` data files into MariaDB-compatible SQL.
 
 ---
 
@@ -14,6 +14,7 @@
 5. [Step-by-Step Usage](#5-step-by-step-usage)
    - 5.1 [Convert SQL File(s)](#51-convert-sql-files)
    - 5.2 [Convert from a BAK Backup File](#52-convert-from-a-bak-backup-file)
+   - 5.3 [Import CSV File(s)](#53-import-csv-files)
 6. [Output File Naming](#6-output-file-naming)
 7. [Button Reference](#7-button-reference)
 8. [The Log Panel](#8-the-log-panel)
@@ -27,7 +28,7 @@
 
 ## 1. Overview
 
-**Dj-MsSql2Maria** is a portable, standalone Windows desktop application. It reads one or more Microsoft SQL Server `.SQL` script files, or a SQL Server `.BAK` backup file, and produces MariaDB-compatible `.SQL` output. SQL files are merged into a single output file; BAK files can produce consolidated or per-table output files.
+**Dj-MsSql2Maria** is a portable, standalone Windows desktop application. It reads one or more Microsoft SQL Server `.SQL` script files, a SQL Server `.BAK` backup file, or one or more `.CSV` data files, and produces MariaDB-compatible `.SQL` output. SQL files are merged into a single output file named after the source; BAK and CSV files can produce consolidated or per-source output files, controlled by the Tables / Data and Consolidate checkboxes.
 
 No installation is required — the application ships as a single self-contained `.exe`.
 
@@ -67,7 +68,7 @@ The output will be located in `bin\Release\net9.0-windows\win-x64\publish\`.
 │    Type:  [ Input SQL File(s) ▼ ]                                    │
 │    File:  [________________________________] [Browse…]              │
 │                                                                     │
-│  (BAK mode only)                                                    │
+│  (BAK / CSV mode)                                                   │
 │    ☑ Create MariaDB script for Tables?  ☐ Consolidate CREATE TABLE into single script? │
 │    ☑ Create MariaDB script for Data?    ☐ Consolidate INSERT DATA into single script?  │
 ├─────────────────────────────────────────────────────────────────────┤
@@ -98,11 +99,12 @@ The output will be located in `bin\Release\net9.0-windows\win-x64\publish\`.
 2. Click **Browse…** next to the **File** field — a multi-select file dialog opens.
 3. Select one or more `.sql` files (hold **Ctrl** or **Shift** to select several), then click **Open**.
 4. Click **Browse…** next to the **Folder** field and choose where to save the output.
-5. Enter the **DB Name** — this is the target MariaDB database. It is added as `CREATE DATABASE IF NOT EXISTS` and `USE` statements at the top of every output file.
+5. Enter the **DB Name** — this is the target MariaDB database. Scripts that include `CREATE TABLE` statements will have `CREATE DATABASE IF NOT EXISTS` and `USE` prepended; data-only scripts receive `USE` only.
 6. *(Optional)* Check **Append to filename?** and edit the suffix (default `_MariaDb`).
 7. Click **GO**.
 
-All selected files are converted and merged into a single output file named `output_MariaDb.sql`  
+When a single file is selected, the output is named after that file (e.g. `Customers_MariaDb.sql`).
+When multiple files are selected, the output is named `output_MariaDb.sql`
 (or `output.sql` if the suffix option is unchecked).
 
 ---
@@ -116,7 +118,7 @@ All selected files are converted and merged into a single output file named `out
 
 1. In Dj-MsSql2Maria's **Type** drop-down, select **MS SQL Server .BAK File**.
 2. Click **Browse…** — the file dialog is filtered to `.bak` files only.
-3. Four extra controls become visible in the Input section (two rows):
+3. Four extra controls become visible in the Input section (two rows) — these same controls also appear for **Import .CSV File(s)** mode:
 
    | Checkbox | Default | Meaning |
    |---|---|---|
@@ -150,9 +152,48 @@ When **checked** (consolidated), a single file is written per script type:
 
 ## 6. Output File Naming
 
+---
+
+### 5.3 Import CSV File(s)
+
+1. In Dj-MsSql2Maria’s **Type** drop-down, select **Import .CSV File(s)**.
+2. Click **Browse…** — a multi-select file dialog filtered to `.csv` files opens.
+3. Select one or more `.csv` files (hold **Ctrl** or **Shift** to select several), then click **Open**.
+4. Click **Browse…** next to the **Folder** field and choose where to save the output.
+5. Enter the **DB Name** (required).
+6. *(Optional)* Check **Append to filename?** and edit the suffix (default `_MariaDb`).
+7. Click **GO**.
+
+**How CSV conversion works:**
+
+- The **first row** of every CSV file is treated as the column header row. Each header becomes a backtick-quoted column name.
+- An `AUTO_INCREMENT PRIMARY KEY` column (`NewID bigint`) is prepended automatically.
+- Column types are inferred by scanning all data rows: columns whose every non-empty value parses as a number use `DOUBLE`; all others use `LONGTEXT`.
+- String values are escaped and wrapped in single quotes. Empty fields become `NULL`.
+- Two output files are written (both receive the same suffix if **Append to filename?** is checked):
+
+| Output file | Contents |
+|---|---|
+| `_CreateTables{suffix}.sql` | One `CREATE TABLE` statement per CSV file |
+| `_Data{suffix}.sql` | `INSERT INTO` statements for every data row across all CSV files |
+
+**Example:** importing `Customers.csv` and `Orders.csv` with suffix `_MariaDb` produces:
+- `_CreateTables_MariaDb.sql`
+- `_Data_MariaDb.sql`
+
+> **Tip:** If the **IF EXISTS for TABLES → Overwrite** option is selected, `DROP TABLE IF EXISTS` is prepended before each `CREATE TABLE`. If **IF EXISTS for RECORDS → Skip** or **Overwrite** is selected, `INSERT IGNORE INTO` is used so duplicate rows are skipped without error.
+
+---
+
+## 6. Output File Naming
+
 | Input Mode | Base name | With suffix `_MariaDb` |
 |---|---|---|
-| Input SQL File(s) | `output` | `output_MariaDb.sql` |
+| Input SQL File(s) — single file | `{filename}` | `Customers_MariaDb.sql` |
+| Input SQL File(s) — multiple files | `output` | `output_MariaDb.sql` |
+| Import .CSV File(s) — single CSV | `{csvName}` | `ADDRESS_MariaDb.sql` |
+| Import .CSV File(s) — consolidated | `_CreateTables` / `_Data` | `_CreateTables_MariaDb.sql` / `_Data_MariaDb.sql` |
+| Import .CSV File(s) — per-file | `{tableName}_CreateTable` / `{tableName}_Data` | `Customers_CreateTable_MariaDb.sql` / `Customers_Data_MariaDb.sql` |
 | BAK File | Same as BAK file | `BackupName_MariaDb_tables.sql` / `BackupName_MariaDb_data.sql` |
 
 The suffix text field is freely editable. Clear it to use an empty suffix, or type any valid filename characters.
@@ -204,7 +245,8 @@ It is updated less frequently than the Log panel and gives an at-a-glance view o
 The progress bar fills from 0 % to 100 % as files are processed.
 
 - For **SQL file** mode, progress advances evenly per file.
-- For **BAK** mode, progress advances in phases: scan (0–60 %), write (60–100 %).
+- For **BAK** mode, progress advances in phases: scan (0–60 %), write (60–100 %).
+- For **CSV** mode, progress advances in two phases: parse (0–60 %), write (60–100 %).
 
 ---
 
@@ -244,7 +286,13 @@ Review the [Known Limitations](#11-known-limitations) above. Complex T-SQL const
 
 ## 13. Frequently Asked Questions
 
-**Q: Does the app connect to SQL Server or MariaDB?**  
+**Q: Can I import CSV files that were not exported from SQL Server?**  
+A: Yes. Any RFC 4180-compliant CSV (double-quoted strings, comma-delimited) works. The first row must be column headers.
+
+**Q: What type is assigned to CSV columns?**  
+A: Numeric-only columns (every non-empty value parses as a number) get `DOUBLE`; all others get `LONGTEXT`. You can edit the generated `CREATE TABLE` script to change types before importing.
+
+**Q: Does the app connect to SQL Server or MariaDB?**
 A: No. It is entirely offline. It reads files from disk and writes converted files to disk only.
 
 **Q: Will the output file overwrite an existing file with the same name?**  
@@ -264,4 +312,4 @@ A: The current version is GUI-only. Command-line support may be added in a futur
 
 ---
 
-*MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria) is open source.
+*MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) is open source.

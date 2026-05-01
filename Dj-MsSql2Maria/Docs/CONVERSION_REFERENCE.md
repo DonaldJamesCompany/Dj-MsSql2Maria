@@ -1,4 +1,4 @@
-﻿# MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria) — SQL Conversion Reference
+﻿# MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) — SQL Conversion Reference
 
 > **Audience:** Developers reviewing, testing, or extending the conversion output.  
 > This reference lists **every** transformation applied by Dj-MsSql2Maria's `SqlConverter.cs`, grouped by action type.
@@ -262,4 +262,4 @@ and must be manually rewritten before the script will run on MariaDB.
 
 ---
 
-*MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria) — https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*
+*MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) — https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*

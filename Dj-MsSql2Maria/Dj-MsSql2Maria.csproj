@@ -21,9 +21,9 @@
     <!-- Assembly metadata -->
     <ApplicationIcon>Icons\DJ-MsSql2Maria_Icon.ico</ApplicationIcon>
     <RootNamespace>Dj_MsSql2Maria</RootNamespace>
-    <AssemblyTitle>MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria)</AssemblyTitle>
-    <Product>MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria)</Product>
-    <Version>1.1.8</Version>
+    <AssemblyTitle>MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria)</AssemblyTitle>
+    <Product>MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria)</Product>
+    <Version>2.0.1</Version>
   </PropertyGroup>
 
   <ItemGroup>

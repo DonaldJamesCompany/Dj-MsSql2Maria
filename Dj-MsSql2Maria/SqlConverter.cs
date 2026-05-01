@@ -65,8 +65,133 @@ internal static class SqlConverter
         return sql.Trim();
     }
 
+    // ── CSV import ───────────────────────────────────────────────────────────
+
     /// <summary>
-    /// Attempts to extract readable SQL text segments embedded inside a SQL Server .BAK file.
+    /// Parses a single CSV file and returns two SQL strings:
+    /// <list type="bullet">
+    ///   <item><description><c>createSql</c> — a CREATE TABLE statement inferred from the headers.</description></item>
+    ///   <item><description><c>dataSql</c>   — INSERT INTO … statements for every data row.</description></item>
+    /// </list>
+    /// Column types default to LONGTEXT; numeric-looking columns use DOUBLE.
+    /// </summary>
+    public static (string createSql, string dataSql) CsvToMariaDb(
+        string csvPath, ConversionOptions options, CancellationToken ct)
+    {
+        string tableName = Path.GetFileNameWithoutExtension(csvPath);
+        string backtickTable = $"`{tableName}`";
+
+        var lines = File.ReadAllLines(csvPath);
+        if (lines.Length == 0)
+            return (string.Empty, string.Empty);
+
+        string[] headers = ParseCsvLine(lines[0]);
+
+        // Drop any columns whose header is blank (e.g. trailing comma in the header row).
+        var validIndices = Enumerable.Range(0, headers.Length)
+            .Where(i => !string.IsNullOrWhiteSpace(headers[i]))
+            .ToArray();
+        headers = validIndices.Select(i => headers[i]).ToArray();
+
+        // Infer column types by scanning all data rows
+        var isNumeric = new bool[headers.Length];
+        Array.Fill(isNumeric, true);
+        for (int r = 1; r < lines.Length; r++)
+        {
+            if (string.IsNullOrWhiteSpace(lines[r])) continue;
+            var row = ParseCsvLine(lines[r]);
+            for (int c = 0; c < headers.Length; c++)
+            {
+                string cell = validIndices[c] < row.Length ? row[validIndices[c]] : string.Empty;
+                if (!string.IsNullOrEmpty(cell) && !double.TryParse(cell, out _))
+                    isNumeric[c] = false;
+            }
+        }
+
+        // BUILD CREATE TABLE
+        var ct_sb = new StringBuilder();
+        if (options.DropTableIfExists)
+            ct_sb.AppendLine($"DROP TABLE IF EXISTS {backtickTable};");
+        ct_sb.AppendLine($"CREATE TABLE {backtickTable}(");
+        ct_sb.AppendLine($"\t`NewID` bigint AUTO_INCREMENT PRIMARY KEY NOT NULL,");
+        for (int c = 0; c < headers.Length; c++)
+        {
+            string colType = isNumeric[c] ? "DOUBLE" : "LONGTEXT";
+            string comma = c < headers.Length - 1 ? "," : string.Empty;
+            ct_sb.AppendLine($"\t`{EscapeIdentifier(headers[c])}` {colType} NULL{comma}");
+        }
+        ct_sb.Append(");");
+
+        // BUILD INSERT statements
+        var d_sb = new StringBuilder();
+        string colList = string.Join(", ", headers.Select(h => $"`{EscapeIdentifier(h)}`"));
+        string insertVerb = options.InsertIgnore ? "INSERT IGNORE INTO" : "INSERT INTO";
+
+        for (int r = 1; r < lines.Length; r++)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (string.IsNullOrWhiteSpace(lines[r])) continue;
+            var rawRow = ParseCsvLine(lines[r]);
+            // Map only the valid (non-blank-header) columns
+            var row = validIndices.Select(i => i < rawRow.Length ? rawRow[i] : string.Empty).ToArray();
+            var values = new string[headers.Length];
+            for (int c = 0; c < headers.Length; c++)
+            {
+                string raw = c < row.Length ? row[c] : string.Empty;
+                if (string.IsNullOrEmpty(raw))
+                    values[c] = "NULL";
+                else if (isNumeric[c] && double.TryParse(raw, out _))
+                    values[c] = raw;
+                else
+                    values[c] = $"'{EscapeSqlString(raw)}'";
+            }
+            d_sb.AppendLine($"{insertVerb} {backtickTable} ({colList}) VALUES ({string.Join(", ", values)});");
+        }
+
+        return (ct_sb.ToString(), d_sb.ToString());
+    }
+
+    /// <summary>Parses one CSV line respecting double-quoted fields (RFC 4180).</summary>
+    private static string[] ParseCsvLine(string line)
+    {
+        var fields = new List<string>();
+        int i = 0;
+        while (i <= line.Length)
+        {
+            if (i == line.Length) { fields.Add(string.Empty); break; }
+            if (line[i] == '"')
+            {
+                // Quoted field
+                i++;
+                var sb = new StringBuilder();
+                while (i < line.Length)
+                {
+                    if (line[i] == '"')
+                    {
+                        if (i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i += 2; }
+                        else { i++; break; }
+                    }
+                    else { sb.Append(line[i++]); }
+                }
+                fields.Add(sb.ToString());
+                if (i < line.Length && line[i] == ',') i++;
+            }
+            else
+            {
+                int start = i;
+                while (i < line.Length && line[i] != ',') i++;
+                fields.Add(line[start..i]);
+                if (i < line.Length) i++; // skip comma
+            }
+        }
+        return [.. fields];
+    }
+
+    private static string EscapeIdentifier(string name) =>
+        name.Replace("`", "``");
+
+    private static string EscapeSqlString(string value) =>
+        value.Replace("\\", "\\\\").Replace("'", "\\'");
     /// This is a best-effort byte-scan approach that does not require a live SQL Server instance.
     /// </summary>
     public static List<BakSegment> ExtractSqlFromBak(

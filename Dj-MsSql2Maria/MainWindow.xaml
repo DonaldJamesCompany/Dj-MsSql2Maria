@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Dj_MsSql2Maria"
         mc:Ignorable="d"
-        Title="MS SQL to MariaDB 1.1.8 (Dj-MsSql2Maria)"
+        Title="MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria)"
         Icon="pack://application:,,,/Icons/DJ-MsSql2Maria_Icon.ico"
         ResizeMode="CanMinimize"
         SizeToContent="Height"
@@ -44,6 +44,7 @@
                     <ComboBox x:Name="CmbInputType" Width="220"
                               SelectionChanged="CmbInputType_SelectionChanged">
                         <ComboBoxItem Content="Input SQL File(s)"         IsSelected="True"/>
+                        <ComboBoxItem Content="Import .CSV File(s)"/>
                         <ComboBoxItem Content="MS SQL Server .BAK File"/>
                     </ComboBox>
                 </StackPanel>
@@ -57,7 +58,7 @@
                             Click="BtnBrowseInput_Click"/>
                 </StackPanel>
 
-                <!-- BAK-specific options -->
+                <!-- BAK / CSV shared options -->
                 <StackPanel x:Name="PnlBakOptions" Visibility="Collapsed" Margin="0,4,0,0">
                     <StackPanel Orientation="Horizontal">
                         <CheckBox x:Name="ChkBakTables" Content="Create MariaDB script for Tables?" IsChecked="True" VerticalAlignment="Center"/>
@@ -67,6 +68,12 @@
                         <CheckBox x:Name="ChkBakData" Content="Create MariaDB script for Data?" IsChecked="True" VerticalAlignment="Center"/>
                         <CheckBox x:Name="ChkBakDataIndividual" Content="Consolidate INSERT DATA into single script?" Margin="12,0,0,0" VerticalAlignment="Center"/>
                     </StackPanel>
+                </StackPanel>
+
+                <!-- CSV-specific info -->
+                <StackPanel x:Name="PnlCsvOptions" Visibility="Collapsed" Margin="0,4,0,0">
+                    <TextBlock TextWrapping="Wrap" Foreground="Gray" FontSize="11"
+                               Text="Table names are derived from filenames. The first row of each CSV must be column headers."/>
                 </StackPanel>
             </StackPanel>
         </GroupBox>
