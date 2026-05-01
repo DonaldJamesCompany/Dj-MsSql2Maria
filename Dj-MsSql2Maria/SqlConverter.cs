@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -103,7 +104,7 @@ internal static class SqlConverter
             for (int c = 0; c < headers.Length; c++)
             {
                 string cell = validIndices[c] < row.Length ? row[validIndices[c]] : string.Empty;
-                if (!string.IsNullOrEmpty(cell) && !double.TryParse(cell, out _))
+                if (!string.IsNullOrEmpty(cell) && !double.TryParse(cell, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
                     isNumeric[c] = false;
             }
         }
@@ -140,7 +141,7 @@ internal static class SqlConverter
                 string raw = c < row.Length ? row[c] : string.Empty;
                 if (string.IsNullOrEmpty(raw))
                     values[c] = "NULL";
-                else if (isNumeric[c] && double.TryParse(raw, out _))
+                else if (isNumeric[c] && double.TryParse(raw, NumberStyles.Number, CultureInfo.InvariantCulture, out _))
                     values[c] = raw;
                 else
                     values[c] = $"'{EscapeSqlString(raw)}'";
@@ -151,39 +152,100 @@ internal static class SqlConverter
         return (ct_sb.ToString(), d_sb.ToString());
     }
 
-    /// <summary>Parses one CSV line respecting double-quoted fields (RFC 4180).</summary>
+    /// <summary>
+    /// Parses one CSV line respecting double-quoted fields (RFC 4180).
+    /// Enhancements over strict RFC 4180:
+    ///   • Leading whitespace before an opening quote is ignored, so both
+    ///     <c>"field"</c> and <c> "field"</c> are treated as quoted fields.
+    ///   • Trailing whitespace between a closing quote and the next comma is
+    ///     ignored, so <c>"field" , next</c> works correctly.
+    ///   • <c>""</c> inside a quoted field is the escaped double-quote (RFC 4180).
+    /// </summary>
     private static string[] ParseCsvLine(string line)
     {
         var fields = new List<string>();
+        var sb = new StringBuilder();
         int i = 0;
-        while (i <= line.Length)
+        int len = line.Length;
+        bool inQuotes = false;
+        bool fieldStart = true;  // true at the very beginning of each field
+        bool closedQuote = false; // true after the closing quote; skip whitespace until comma
+
+        while (i < len)
         {
-            if (i == line.Length) { fields.Add(string.Empty); break; }
-            if (line[i] == '"')
+            char c = line[i];
+
+            // After a closing quote: skip whitespace and consume the comma separator.
+            if (closedQuote)
             {
-                // Quoted field
-                i++;
-                var sb = new StringBuilder();
-                while (i < line.Length)
+                if (c == ',')
                 {
-                    if (line[i] == '"')
-                    {
-                        if (i + 1 < line.Length && line[i + 1] == '"') { sb.Append('"'); i += 2; }
-                        else { i++; break; }
-                    }
-                    else { sb.Append(line[i++]); }
+                    fields.Add(sb.ToString());
+                    sb.Clear();
+                    fieldStart = true;
+                    closedQuote = false;
                 }
+                // Any other character (trailing space, malformed content) is silently skipped.
+                i++;
+                continue;
+            }
+
+            // At the start of a field, skip leading spaces only when they precede a quote.
+            // This allows both strict RFC 4180 and "sloppy" CSVs like: field1, "field2", field3
+            if (fieldStart && c == ' ')
+            {
+                int j = i + 1;
+                while (j < len && line[j] == ' ') j++;
+                if (j < len && line[j] == '"')
+                {
+                    i = j; // skip the leading spaces; next iteration will open the quoted field
+                }
+                else
+                {
+                    sb.Append(c); // unquoted field — preserve the space as part of the value
+                    i++;
+                    fieldStart = false;
+                }
+                continue;
+            }
+
+            if (!inQuotes && c == '"')
+            {
+                inQuotes = true;
+                fieldStart = false;
+                i++;
+            }
+            else if (inQuotes && c == '"')
+            {
+                if (i + 1 < len && line[i + 1] == '"')
+                {
+                    sb.Append('"'); // "" inside a quoted field → literal "
+                    i += 2;
+                }
+                else
+                {
+                    inQuotes = false;
+                    closedQuote = true;
+                    i++;
+                }
+            }
+            else if (!inQuotes && c == ',')
+            {
                 fields.Add(sb.ToString());
-                if (i < line.Length && line[i] == ',') i++;
+                sb.Clear();
+                fieldStart = true;
+                i++;
             }
             else
             {
-                int start = i;
-                while (i < line.Length && line[i] != ',') i++;
-                fields.Add(line[start..i]);
-                if (i < line.Length) i++; // skip comma
+                sb.Append(c);
+                i++;
+                fieldStart = false;
             }
         }
+
+        // Add the last field (handles both normal last fields and trailing-comma empty fields).
+        fields.Add(sb.ToString());
         return [.. fields];
     }
 
