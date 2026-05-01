@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:Dj_MsSql2Maria"
         mc:Ignorable="d"
-        Title="MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria)"
+        Title="MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria)"
         Icon="pack://application:,,,/Icons/DJ-MsSql2Maria_Icon.ico"
         ResizeMode="CanMinimize"
         SizeToContent="Height"

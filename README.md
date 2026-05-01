@@ -1,7 +1,8 @@
-﻿# MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria)
+﻿# MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria)
 
 > **Convert Microsoft SQL Server `.SQL` scripts and `.BAK` backup files — or plain `.CSV` data files — into MariaDB-compatible SQL — offline, instantly, with no SQL Server instance required.**
 
+[![Version](https://img.shields.io/badge/version-2.1.1-blue)](https://github.com/DonaldJamesCompany/Dj-MsSql2Maria/releases)
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D4?logo=windows)](https://github.com/DonaldJamesCompany/Dj-MsSql2Maria/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -53,7 +54,7 @@ Output: `bin\Release\net9.0-windows\win-x64\publish\Dj-MsSql2Maria.exe`
 | Feature | Detail |
 |---|---|
 | **Input SQL File(s)** | Select one or more MS SQL Server `.sql` files; all are converted and merged into one MariaDB output |
-| **Import .CSV File(s)** | Select one or more `.csv` files; column types are inferred automatically; shares the same Tables/Data and consolidation options as BAK mode |
+| **Import .CSV File(s)** | Select one or more `.csv` files; column types are inferred automatically; shares the same Tables/Data and consolidation options as BAK mode. Full RFC 4180 quoted-field parsing — commas inside quoted fields (e.g. `"13,10"`) are preserved correctly as string values. Embedded `""` escaped quotes inside fields are also handled. |
 | **BAK file** | Best-effort SQL text extraction (no SQL Server needed) |
 | **Tables / Data toggle** | Available for both BAK and CSV: choose Tables only, Data only, or both |
 | **Consolidate CREATE TABLE** | When checked: all CREATE TABLE scripts go into one consolidated `.sql` file. When unchecked (default): one `.sql` file per source. |
@@ -170,6 +171,27 @@ Full list → [`docs/CONVERSION_REFERENCE.md — NOT CONVERTED section`](Dj-MsSq
 
 ---
 
+## Changelog
+
+### 2.1.1 — CSV quoted-field parsing fixes
+
+- **Fix: commas inside quoted CSV fields no longer split into extra columns.**  
+  Values such as `"13,10"` or `"12,12,12,12"` were previously broken across multiple SQL columns because `double.TryParse` (with system culture) treated the comma as a decimal separator. Parsing now uses `CultureInfo.InvariantCulture` so these values are correctly emitted as single quoted strings.
+- **Fix: embedded double-quotes inside CSV fields now handled correctly.**  
+  RFC 4180 `""` escape sequences (e.g. `""bob", "jim", and "anne""`) are decoded to their literal `"` characters and the entire field is preserved as one SQL string value.
+- **Fix: spurious empty field at end of every parsed CSV row removed.**  
+  The previous `while (i <= line.Length)` loop always appended an extra empty field to every row; the rewritten parser uses `while (i < line.Length)` and adds the final field once after the loop.
+- **Fix: leading whitespace before an opening quote is now ignored.**  
+  CSVs with `, "field"` (space before the opening quote) are parsed as a quoted field rather than falling into the unquoted branch and splitting on internal commas.
+
+### 2.0.1 — Initial public release
+
+- SQL file, BAK file, and CSV import modes
+- Full MS SQL → MariaDB type, function, identifier, and DDL conversion
+- Portable single `.exe`, no SQL Server required
+
+---
+
 ## Contributing
 
 Pull requests are welcome. Please open an issue first to discuss significant changes.
@@ -187,4 +209,4 @@ Pull requests are welcome. Please open an issue first to discuss significant cha
 
 ---
 
-*MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) — https://www.donaldjamescompany.com/windows-app-dj-mssql2maria.html*
+*MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria) — https://www.donaldjamescompany.com/windows-app-dj-mssql2maria.html*

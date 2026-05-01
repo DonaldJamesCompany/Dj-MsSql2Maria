@@ -21,11 +21,11 @@
     <!-- Assembly metadata -->
     <ApplicationIcon>Icons\DJ-MsSql2Maria_Icon.ico</ApplicationIcon>
     <RootNamespace>Dj_MsSql2Maria</RootNamespace>
-    <AssemblyTitle>MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria)</AssemblyTitle>
-    <Product>MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria)</Product>
-    <Version>2.0.1</Version>
-    <FileVersion>2.0.1.0</FileVersion>
-    <InformationalVersion>2.0.1</InformationalVersion>
+    <AssemblyTitle>MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria)</AssemblyTitle>
+    <Product>MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria)</Product>
+    <Version>2.1.1</Version>
+    <FileVersion>2.1.1.0</FileVersion>
+    <InformationalVersion>2.1.1</InformationalVersion>
     <Description>Convert MS SQL Server .SQL scripts, .BAK backup files, and .CSV data files into MariaDB-compatible SQL — offline, no SQL Server required. Portable single .exe for Windows x64.</Description>
     <Authors>Donald James Company</Authors>
     <Company>Donald James Company</Company>

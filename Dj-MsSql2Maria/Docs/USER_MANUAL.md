@@ -1,6 +1,6 @@
-﻿# MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) — End-User Manual
+﻿# MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria) — End-User Manual
 
-> **Version 2.0.1**
+> **Version 2.1.1**
 > Converts Microsoft SQL Server `.SQL` scripts, `.BAK` backup files, and `.CSV` data files into MariaDB-compatible SQL.
 
 ---
@@ -287,7 +287,7 @@ Review the [Known Limitations](#11-known-limitations) above. Complex T-SQL const
 ## 13. Frequently Asked Questions
 
 **Q: Can I import CSV files that were not exported from SQL Server?**  
-A: Yes. Any RFC 4180-compliant CSV (double-quoted strings, comma-delimited) works. The first row must be column headers.
+A: Yes. Any RFC 4180-compliant CSV (double-quoted strings, comma-delimited) works. The first row must be column headers. Commas inside quoted fields (e.g. `"13,10"`) are preserved as a single string value, not split into extra columns. Embedded `""` escaped double-quotes within a field are also handled correctly.
 
 **Q: What type is assigned to CSV columns?**  
 A: Numeric-only columns (every non-empty value parses as a number) get `DOUBLE`; all others get `LONGTEXT`. You can edit the generated `CREATE TABLE` script to change types before importing.
@@ -312,4 +312,22 @@ A: The current version is GUI-only. Command-line support may be added in a futur
 
 ---
 
-*MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) is open source.
+## 14. Version History
+
+### 2.1.1
+
+| Area | Change |
+|---|---|
+| CSV import | Commas inside quoted fields (e.g. `"13,10"`, `"12,12,12,12"`) no longer split into extra SQL columns |
+| CSV import | RFC 4180 `""` escaped double-quotes inside a field are decoded correctly (e.g. `""bob", "jim""` → `"bob", "jim"`) |
+| CSV import | Spurious empty trailing field that was appended to every parsed row is removed |
+| CSV import | Leading whitespace before an opening quote (`, "field"`) is now treated as a quoted field |
+| CSV import | Numeric type inference now uses `InvariantCulture` so locale-specific comma-as-decimal-separator cannot misclassify string values as numbers |
+
+### 2.0.1
+
+Initial public release — SQL file, BAK file, and CSV import modes.
+
+---
+
+*MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria) is open source.
