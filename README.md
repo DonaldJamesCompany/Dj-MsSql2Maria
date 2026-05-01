@@ -187,4 +187,4 @@ Pull requests are welcome. Please open an issue first to discuss significant cha
 
 ---
 
-*MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) — https://github.com/DonaldJamesCompany/Dj-MsSql2Maria*
+*MS SQL to MariaDB 2.0.1 (Dj-MsSql2Maria) — https://www.donaldjamescompany.com/windows-app-dj-mssql2maria.html*
