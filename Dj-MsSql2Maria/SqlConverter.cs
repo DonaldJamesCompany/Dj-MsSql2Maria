@@ -23,6 +23,7 @@ internal static class SqlConverter
     {
         if (string.IsNullOrWhiteSpace(sql)) return sql;
 
+        sql = StripComments(sql);
         sql = RemoveUnsupportedStatements(sql);
         sql = ConvertDatatypes(sql);
         sql = ConvertIdentityToAutoIncrement(sql);
@@ -66,9 +67,7 @@ internal static class SqlConverter
 
         if (results.Count == 0)
             results.Add(new BakSegment("_no_sql_found", BakSegmentType.Table,
-                "-- Dj-MsSql2Maria: No extractable SQL text was found in this .BAK file.\r\n" +
-                "-- To convert a BAK file fully, attach it to a SQL Server instance, \r\n" +
-                "-- script the database objects with SSMS, then use the .SQL file mode."));
+                "SELECT 'Dj-MsSql2Maria: No extractable SQL text was found in this BAK file. Attach to SQL Server, script with SSMS, then use SQL file mode.' AS Note;"));
 
         return results;
     }
@@ -125,6 +124,19 @@ internal static class SqlConverter
     }
 
     // ── Conversion passes ────────────────────────────────────────────────────
+
+    private static string StripComments(string sql)
+    {
+        // Remove block comments /* ... */ (including multi-line)
+        sql = Regex.Replace(sql, @"/\*.*?\*/", string.Empty,
+            RegexOptions.Singleline);
+        // Remove line comments -- ...
+        sql = Regex.Replace(sql, @"--[^\r\n]*", string.Empty,
+            RegexOptions.Multiline);
+        // Collapse blank lines left behind
+        sql = Regex.Replace(sql, @"(\r?\n){3,}", "\r\n\r\n");
+        return sql;
+    }
 
     private static string RemoveUnsupportedStatements(string sql)
     {
@@ -306,8 +318,8 @@ internal static class SqlConverter
 
     private static string ConvertGoStatements(string sql)
     {
-        // GO batch separator → comment (MariaDB doesn't use GO)
-        sql = Regex.Replace(sql, @"^\s*GO\s*$", "-- GO", RegexOptions.Multiline | RegexOptions.IgnoreCase);
+        // GO batch separator — remove entirely (MariaDB doesn't use GO)
+        sql = Regex.Replace(sql, @"^\s*GO\s*$", string.Empty, RegexOptions.Multiline | RegexOptions.IgnoreCase);
         return sql;
     }
 
@@ -332,9 +344,10 @@ internal static class SqlConverter
     {
         // SELECT TOP n … → SELECT … LIMIT n  (simple single-table cases)
         // This is a best-effort transform; complex queries may need manual review.
+        // Best-effort: strip TOP n (LIMIT must be added manually at end of query)
         return Regex.Replace(sql,
             @"\bSELECT\s+TOP\s+(\d+)\b",
-            "SELECT /* TOP $1 – move LIMIT $1 to end of query */",
+            "SELECT",
             RegexOptions.IgnoreCase);
     }
 
@@ -348,15 +361,15 @@ internal static class SqlConverter
         // IF OBJECT_ID('x') IS NOT NULL DROP TABLE x → DROP TABLE IF EXISTS x
         sql = Regex.Replace(sql,
             @"IF\s+OBJECT_ID\s*\(\s*N?'([^']+)'\s*(?:,\s*N?'[^']*')?\s*\)\s+IS\s+NOT\s+NULL\s+(DROP\s+(?:TABLE|PROCEDURE|VIEW|FUNCTION)\s+\S+)",
-            "$2 -- converted from IF OBJECT_ID", RegexOptions.IgnoreCase);
+            "$2", RegexOptions.IgnoreCase);
 
         return sql;
     }
 
     private static string ConvertWithNolock(string sql)
     {
-        // WITH (NOLOCK) is a MSSQL hint; MariaDB ignores it
-        return Regex.Replace(sql, @"\bWITH\s*\(\s*NOLOCK\s*\)", "/* WITH(NOLOCK) */",
+        // WITH (NOLOCK) is a MSSQL hint — remove entirely (not supported by MariaDB)
+        return Regex.Replace(sql, @"\bWITH\s*\(\s*NOLOCK\s*\)", string.Empty,
             RegexOptions.IgnoreCase);
     }
 
