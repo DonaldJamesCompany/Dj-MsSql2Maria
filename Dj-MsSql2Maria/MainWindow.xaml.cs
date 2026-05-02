@@ -43,7 +43,7 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             TxtLog.AppendText(message + Environment.NewLine);
-            TxtLog.ScrollToEnd();
+            LogScroller.ScrollToBottom();
         });
     }
 

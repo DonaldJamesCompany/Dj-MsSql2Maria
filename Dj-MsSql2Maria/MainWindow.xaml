@@ -155,7 +155,7 @@
 
         <!-- Log -->
         <GroupBox Header="Log">
-            <ScrollViewer Height="110" VerticalScrollBarVisibility="Auto"
+            <ScrollViewer x:Name="LogScroller" Height="110" VerticalScrollBarVisibility="Auto"
                           HorizontalScrollBarVisibility="Disabled">
                 <TextBox x:Name="TxtLog"
                          IsReadOnly="True"
