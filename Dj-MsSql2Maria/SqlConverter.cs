@@ -114,11 +114,15 @@ internal static class SqlConverter
         if (options.DropTableIfExists)
             ct_sb.AppendLine($"DROP TABLE IF EXISTS {backtickTable};");
         ct_sb.AppendLine($"CREATE TABLE {backtickTable}(");
-        ct_sb.AppendLine($"\t`NewID` bigint AUTO_INCREMENT PRIMARY KEY NOT NULL,");
-        for (int c = 0; c < headers.Length; c++)
+        ct_sb.AppendLine($"\t`NewID` BIGINT AUTO_INCREMENT PRIMARY KEY NOT NULL,");
+        var dataColumns = Enumerable.Range(0, headers.Length)
+            .Where(c => !string.Equals(headers[c], "NewID", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        for (int i = 0; i < dataColumns.Length; i++)
         {
+            int c = dataColumns[i];
             string colType = isNumeric[c] ? "DOUBLE" : "LONGTEXT";
-            string comma = c < headers.Length - 1 ? "," : string.Empty;
+            string comma = i < dataColumns.Length - 1 ? "," : string.Empty;
             ct_sb.AppendLine($"\t`{EscapeIdentifier(headers[c])}` {colType} NULL{comma}");
         }
         ct_sb.Append(");");
