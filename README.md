@@ -1,8 +1,8 @@
-﻿# MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria)
+﻿# MS SQL to MariaDB 2.1.3 (Dj-MsSql2Maria)
 
 > **Convert Microsoft SQL Server `.SQL` scripts and `.BAK` backup files — or plain `.CSV` data files — into MariaDB-compatible SQL — offline, instantly, with no SQL Server instance required.**
 
-[![Version](https://img.shields.io/badge/version-2.1.1-blue)](https://github.com/DonaldJamesCompany/Dj-MsSql2Maria/releases)
+[![Version](https://img.shields.io/badge/version-2.1.3-blue)](https://github.com/DonaldJamesCompany/Dj-MsSql2Maria/releases)
 [![.NET 9](https://img.shields.io/badge/.NET-9.0-512BD4?logo=dotnet)](https://dotnet.microsoft.com/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20x64-0078D4?logo=windows)](https://github.com/DonaldJamesCompany/Dj-MsSql2Maria/releases)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
@@ -173,12 +173,20 @@ Full list → [`docs/CONVERSION_REFERENCE.md — NOT CONVERTED section`](Dj-MsSq
 
 ## Changelog
 
-### 2.1.1 — CSV quoted-field parsing fixes
+### 2.1.3 — CSV CREATE TABLE duplicate-column fix
+
+- **Fix: duplicate `NewID` column no longer emitted in `CREATE TABLE` output.**  
+  When the source CSV already contained a column named `NewID`, the generator was emitting it twice — once as the hardcoded `BIGINT AUTO_INCREMENT PRIMARY KEY NOT NULL` row and again as a `DOUBLE NULL` data column from the loop. The column loop now skips any header named `NewID` (case-insensitive). The `bigint` keyword is also corrected to uppercase `BIGINT` for style consistency.
+
+### 2.1.2 — CSV quoted-field & numeric-inference fixes
 
 - **Fix: commas inside quoted CSV fields no longer split into extra columns.**  
   Values such as `"13,10"` or `"12,12,12,12"` were previously broken across multiple SQL columns. Two compounding bugs were fixed: (1) `double.TryParse` used the system locale which could treat `,` as a decimal separator; (2) even with `InvariantCulture`, `NumberStyles.Number` includes `AllowThousands`, so `"13,10"` was parsed as `1310` and emitted as the bare unquoted tokens `13,10` in the SQL. Numeric inference now uses `NumberStyles.Float` (no thousands grouping) with `InvariantCulture`, so `"13,10"` is correctly emitted as `'13,10'`.
 - **Fix: embedded double-quotes inside CSV fields now handled correctly.**  
   RFC 4180 `""` escape sequences (e.g. `""bob", "jim", and "anne""`) are decoded to their literal `"` characters and the entire field is preserved as one SQL string value.
+
+### 2.1.1 — CSV row-parsing fixes
+
 - **Fix: spurious empty field at end of every parsed CSV row removed.**  
   The previous `while (i <= line.Length)` loop always appended an extra empty field to every row; the rewritten parser uses `while (i < line.Length)` and adds the final field once after the loop.
 - **Fix: leading whitespace before an opening quote is now ignored.**  
@@ -209,4 +217,4 @@ Pull requests are welcome. Please open an issue first to discuss significant cha
 
 ---
 
-*MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria) — https://www.donaldjamescompany.com/windows-app-dj-mssql2maria.html*
+*MS SQL to MariaDB 2.1.3 (Dj-MsSql2Maria) — https://www.donaldjamescompany.com/windows-app-dj-mssql2maria.html*

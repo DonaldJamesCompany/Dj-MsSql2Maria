@@ -1,6 +1,6 @@
-﻿# MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria) — End-User Manual
+﻿# MS SQL to MariaDB 2.1.3 (Dj-MsSql2Maria) — End-User Manual
 
-> **Version 2.1.1**
+> **Version 2.1.3**
 > Converts Microsoft SQL Server `.SQL` scripts, `.BAK` backup files, and `.CSV` data files into MariaDB-compatible SQL.
 
 ---
@@ -314,12 +314,23 @@ A: The current version is GUI-only. Command-line support may be added in a futur
 
 ## 14. Version History
 
-### 2.1.1
+### 2.1.3
+
+| Area | Change |
+|---|---|
+| CSV import | Duplicate `NewID` column no longer emitted in `CREATE TABLE`. When the source CSV contained a column named `NewID`, the hardcoded `BIGINT AUTO_INCREMENT PRIMARY KEY NOT NULL` row was followed by a second `NewID DOUBLE NULL` from the column loop. The loop now skips any header named `NewID` (case-insensitive). The `bigint` keyword is also corrected to uppercase `BIGINT`. |
+
+### 2.1.2
 
 | Area | Change |
 |---|---|
 | CSV import | Commas inside quoted fields (e.g. `"13,10"`, `"12,12,12,12"`) no longer split into extra SQL columns. Two compounding bugs fixed: system-locale comma-as-decimal, and `NumberStyles.Number` allowing thousands-group commas (`"13,10"` → `1310`). Now uses `NumberStyles.Float` + `InvariantCulture` so `"13,10"` is correctly emitted as `'13,10'` |
 | CSV import | RFC 4180 `""` escaped double-quotes inside a field are decoded correctly (e.g. `""bob", "jim""` → `"bob", "jim"`) |
+
+### 2.1.1
+
+| Area | Change |
+|---|---|
 | CSV import | Spurious empty trailing field that was appended to every parsed row is removed |
 | CSV import | Leading whitespace before an opening quote (`, "field"`) is now treated as a quoted field |
 | CSV import | Numeric type inference now uses `InvariantCulture` so locale-specific comma-as-decimal-separator cannot misclassify string values as numbers |
@@ -330,4 +341,4 @@ Initial public release — SQL file, BAK file, and CSV import modes.
 
 ---
 
-*MS SQL to MariaDB 2.1.1 (Dj-MsSql2Maria) is open source.
+*MS SQL to MariaDB 2.1.3 (Dj-MsSql2Maria) is open source.
