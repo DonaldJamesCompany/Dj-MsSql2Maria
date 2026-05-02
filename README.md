@@ -27,7 +27,7 @@ No installer. No SQL Server. No internet connection. One `.exe`.
 
 ## Screenshots
 
-> *(Add screenshots here once the UI is finalised.)*
+<img width="589" height="683" alt="Dj-MsSql2Maria_screenshot" src="https://github.com/user-attachments/assets/37b1e8c6-fda7-4aa7-baf9-5f1dff01952b" />
 
 ---
 
